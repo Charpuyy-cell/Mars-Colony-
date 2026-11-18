@@ -1,0 +1,1632 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#140a08">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>MARS COLONY</title>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--ac:#5ee6d0;--tx:#e9f6f3;--bg:rgba(8,14,16,.62);color-scheme:dark;
+  --t:calc(10px + env(safe-area-inset-top,0px));--b:calc(14px + env(safe-area-inset-bottom,0px));
+  --l:calc(12px + env(safe-area-inset-left,0px));--r:calc(12px + env(safe-area-inset-right,0px))}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--tx);font:500 15px 'Chakra Petch',system-ui,sans-serif;user-select:none;touch-action:none}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#hud{position:fixed;inset:0;pointer-events:none}
+.panel{position:absolute;display:flex;flex-direction:column;gap:2px;padding:8px 12px;background:var(--bg);border-left:3px solid var(--ac);backdrop-filter:blur(6px)}
+.panel b{font-weight:700;font-size:15px;color:var(--ac)}
+.panel span{font-size:12px;opacity:.9}.panel small{font-size:11px;opacity:.6}
+.tl{top:var(--t);left:var(--l)}
+.tr{top:var(--t);right:var(--r);flex-direction:row;flex-wrap:wrap;gap:4px 12px;max-width:44vw;justify-content:flex-end;border-left:0;border-right:3px solid var(--ac)}
+.round{pointer-events:auto;width:56px;height:56px;border-radius:50%;border:2px solid var(--ac);background:var(--bg);color:var(--tx);font:700 11px 'Chakra Petch',sans-serif;touch-action:none}
+.round:active{background:var(--ac);color:#031512}
+.round.big{width:72px;height:72px}
+.top{position:absolute;top:var(--t);left:50%;transform:translateX(-50%);width:40px;height:40px;font-size:13px}
+#joy{display:none;position:absolute;left:var(--l);bottom:var(--b);width:120px;height:120px;border-radius:50%;border:2px solid rgba(94,230,208,.55);background:var(--bg);pointer-events:auto;touch-action:none;align-items:center;justify-content:center}
+#joy i{width:48px;height:48px;border-radius:50%;background:var(--ac);opacity:.75;pointer-events:none}
+.acts{display:none;position:absolute;right:var(--r);bottom:var(--b);gap:12px;align-items:flex-end}
+.touch #joy,.touch .acts{display:flex}
+#pause{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(6,10,12,.72);backdrop-filter:blur(4px)}
+#pause[hidden]{display:none}
+.card{display:flex;flex-direction:column;gap:10px;width:min(86vw,340px);padding:22px;background:var(--bg);border:1px solid rgba(94,230,208,.45);text-align:center}
+h1{margin:0;font-size:28px;font-weight:700;color:var(--ac);letter-spacing:.12em}
+.sub{margin:0 0 6px;font-size:13px;opacity:.7}
+.card button{padding:12px;font:700 14px 'Chakra Petch',sans-serif;color:var(--tx);background:transparent;border:1px solid var(--ac);cursor:pointer}
+#resume{background:var(--ac);color:#031512}
+.card button:disabled{opacity:.35;cursor:default;border-color:#888}
+.keys{font-size:12px;opacity:.6;margin:4px 0 0;line-height:1.5}
+#toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);padding:8px 16px;background:var(--bg);border:1px solid var(--ac);opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+#toast.on{opacity:1}
+#pause{z-index:5}#toast{z-index:6}
+#build{position:fixed;left:var(--l);right:var(--r);bottom:var(--b);max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:6px;padding:8px;background:var(--bg);border:1px solid rgba(94,230,208,.45);backdrop-filter:blur(8px)}
+#build[hidden],#build .row[hidden]{display:none}
+#build .row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;touch-action:pan-x}
+#build button{flex:none;padding:7px 10px;font:700 12px 'Chakra Petch',sans-serif;color:var(--tx);background:transparent;border:1px solid rgba(94,230,208,.5);cursor:pointer}
+#build button.on{background:var(--ac);color:#031512}
+#build button.no{opacity:.45}
+#build button small{display:block;font-weight:500;font-size:10px;opacity:.8}
+#build .sw{width:26px;height:26px;padding:0;border-radius:50%}
+#build .sw.on{outline:2px solid #fff}
+#bPlace{background:var(--ac)!important;color:#031512!important}
+#hint{font-size:12px;opacity:.85;min-height:15px}
+.building #joy,.building .acts{bottom:calc(var(--b) + var(--bh,200px) + 8px)}
+#dash{top:calc(var(--t) + 74px);left:var(--l);width:178px;pointer-events:auto;cursor:pointer}
+.nd{position:relative;display:flex;justify-content:space-between;font-size:12px;padding:3px 0 5px}
+.nd b{font-weight:500;opacity:.9}
+.nd i{position:absolute;left:0;bottom:1px;height:2px;width:0;transition:width .3s}
+.nd.low span{color:#ff8a6b}
+#dList{font-size:11px;line-height:1.55;margin-top:4px;padding-top:4px;border-top:1px solid rgba(94,230,208,.3)}
+#dList[hidden]{display:none}
+#dash small{font-size:10px;opacity:.55}
+.building #joy,.building .acts{bottom:var(--b)}
+.touch #build{left:calc(var(--l) + 136px);right:calc(var(--r) + 240px);bottom:var(--b);max-width:none;margin:0}
+@media (orientation:portrait){.touch #build{left:var(--l);right:var(--r);bottom:calc(var(--b) + 136px)}}
+#dash{width:112px;padding:4px 8px;top:calc(var(--t) + 66px)}
+.nd{font-size:10px;padding:1px 0 4px}
+#dash small{font-size:9px}
+#dList{font-size:10px}
+.top2{position:absolute;top:var(--t);left:calc(50% + 28px);width:40px;height:40px;font-size:12px}
+.modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(6,10,12,.6);z-index:4}
+.modal[hidden]{display:none}
+.card h2{margin:0;font-size:20px;color:var(--ac)}
+.it{display:flex;justify-content:space-between;font-size:13px;padding:4px 8px;border-left:2px solid rgba(94,230,208,.4);text-align:left}
+.it.on{border-left-color:var(--ac);background:rgba(94,230,208,.12)}
+.it span{opacity:.75}
+.card button.no{opacity:.45}
+.it button{padding:4px 10px;font-size:11px}
+html,body{overscroll-behavior:none}
+#hotbar{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);display:flex;gap:6px;pointer-events:auto}
+body.building #hotbar{display:none}
+@media (max-width:520px){#hotbar{bottom:130px}}
+.slot{position:relative;width:48px;height:48px;padding:0;border:1px solid var(--ac);background:var(--bg);color:#fff;font:700 9px 'Chakra Petch',sans-serif}
+.slot i{position:absolute;top:2px;left:4px;font-style:normal;opacity:.7}
+.slot.on{background:var(--ac);color:#000}
+.it button.on{background:var(--ac);color:#000}
+.it>div>button{margin-left:4px}
+#build button small{white-space:normal;max-width:150px;text-align:center}
+.card button small{display:block;font-weight:500;font-size:10px;opacity:.8}
+#desc{font-size:11px;opacity:.8;line-height:1.35}
+.col{display:flex;flex-direction:column;gap:10px}
+.col[hidden]{display:none}
+.card input{padding:10px;background:rgba(255,255,255,.08);border:1px solid var(--ac);color:var(--tx);font:500 14px 'Chakra Petch',sans-serif;user-select:text}
+#toast{z-index:9}
+.bagcard{width:min(92vw,420px);max-height:86vh;padding:0 16px 14px;gap:8px;overflow:hidden;text-align:left}
+.bagtop{display:flex;align-items:center;justify-content:space-between;padding:10px 0 8px;border-bottom:1px solid rgba(94,230,208,.3)}
+.bagtop button{padding:8px 18px}
+#bagTools{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+#mJRes{font-size:12px;line-height:1.5;white-space:pre-line;text-align:left;opacity:.9;min-height:18px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div class="panel tl"><b>Koloni Alpha</b><span id="lvTxt">Level 1, basis bertahan hidup</span><small id="pos">X 0 Z 0</small></div>
+  <div class="panel" id="dash"><div id="dNeeds"></div><div id="dList" hidden></div><small>Syarat level ▸</small></div>
+  <div class="panel tr"><span>Credits 0</span><span id="r0"></span><span id="r1"></span><span id="r2"></span><span id="r3"></span><span id="r4"></span><span>Tamu</span></div>
+  <button id="pausebtn" class="round top" aria-label="Jeda">II</button>
+  <button id="bagbtn" class="round top2" aria-label="Tas">Tas</button>
+  <div id="joy"><i></i></div>
+  <div class="acts">
+    <button id="bBuild" class="round">Bangun</button>
+    <button id="bAct" class="round">Aksi</button>
+    <button id="bJump" class="round big">Loncat</button>
+  </div>
+</div>
+<div id="pause"><div class="card">
+  <h1>MARS COLONY</h1>
+  <p class="sub">Prototype 1.2, Phase 6b</p>
+  <button id="resume">Mulai</button>
+  <button id="quality"></button>
+  <button id="reset">Reset posisi</button>
+  <button id="saveBtn">Simpan dunia</button>
+  <button id="menuBtn">Menu utama</button><button id="sndBtn"></button>
+  <p class="keys">WASD gerak, Shift lari, Space loncat, tahan klik dan geser untuk kamera, E atau tombol Aksi interaksi, I tas, B panel bangun, F tempatkan, R putar, T/G level, Z undo, 1-6 mode, mode bangun = kamera bebas (Space naik, C turun, klik pasang), Esc jeda</p>
+</div></div>
+<div id="build" hidden>
+  <div class="row" id="modes"></div><div class="row" id="cats"></div><div class="row" id="comps"></div>
+  <div class="row" id="cols"></div><div class="row" id="bpRow"></div><div id="desc"></div><div id="hint"></div>
+  <div class="row"><button id="bPlace">Tempatkan</button><button id="bRot">Putar</button><button id="bLv">Level 0</button><button id="bUndo">Undo</button><button id="bCancel">Batal</button><button id="bMin">Ciutkan</button><button id="bRefill">Isi ulang (uji)</button></div>
+</div>
+<div class="modal" id="bag" hidden><div class="card bagcard"><div class="bagtop"><h2>Tas</h2><button id="bagX">Tutup</button></div><div id="bagTools"></div></div></div>
+<div class="modal" id="wb" hidden><div class="card"><h2>Workbench</h2><p class="sub">Upgrade peralatan. Blueprint bangunan menyusul.</p><div id="wbList" style="display:flex;flex-direction:column;gap:8px"></div><button id="wbX">Tutup</button></div></div>
+<div class="modal" id="menu" style="z-index:8;background:rgba(6,10,12,.88)"><div class="card">
+  <h1>MARS COLONY</h1><p class="sub">Prototype 0.9, Phase 6d</p><p class="sub" id="mWorldInfo"></p>
+  <div class="col" id="mMain"><button id="mCont">Lanjutkan</button><button id="mNew">Dunia baru</button><button id="mJoin">Gabung dunia</button><button id="mSet"></button><button id="mSnd"></button><button id="mGoogle">Login Google (belum aktif)</button></div>
+  <div class="col" id="mNewF" hidden><input id="mWorld" placeholder="Nama dunia" maxlength="24"><input id="mCol" placeholder="Nama koloni" maxlength="24"><button id="mGo">Mulai</button><button id="mBack">Kembali</button></div>
+  <div class="col" id="mJoinF" hidden><input id="mJW" placeholder="Nama dunia" maxlength="24"><input id="mJC" placeholder="Nama koloni" maxlength="24"><button id="mFind">Cari dunia</button><div id="mJRes"></div><button id="mJoinGo" class="no" hidden>Gabung (mabar belum aktif)</button><button id="mJBack">Kembali</button></div>
+</div></div>
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+const $ = (id) => document.getElementById(id);
+
+/* ===== DUNIA (terrain, langit, batu, batas area) ===== */
+const FM = new Set(), fmk = (a, b) => FM.has((a + 4096) * 8192 + b + 4096) ? 1 : 0; // simpul 4 m yang diratakan oleh bangunan
+let FLAT = 12; // setengah sisi lahan bangun yang diratakan (naik saat ekspansi)
+const AREA = 50; // setengah sisi area bangun: 100 x 100 m
+const CRATERS = [[-30, 22, 7, 2.2], [28, -26, 9, 2.8], [12, 38, 5, 1.5], [-38, -30, 6, 1.8]];
+
+// Tinggi tanah dari rumus: dipakai mesh, karakter, batu, dan nanti bangunan.
+function heightAt(x, z) {
+  let h = Math.sin(x * .07) * Math.cos(z * .06) * 2.2 + Math.sin(x * .19 + z * .13) * .5 + Math.cos(z * .23 - x * .11) * .35;
+  h *= THREE.MathUtils.smoothstep(Math.hypot(x, z), 18, 36); // pusat rata untuk lahan bangun
+  for (const [cx, cz, r, dp] of CRATERS) {
+    const q = Math.hypot(x - cx, z - cz) / r;
+    if (q < 2) h += -dp * Math.exp(-q * q * 2.5) + .35 * dp * Math.exp(-((q - 1) ** 2) * 18);
+  }
+  const d = Math.max(Math.abs(x), Math.abs(z));
+  h *= THREE.MathUtils.smoothstep(d, FLAT + 1, FLAT + 9); // lahan awal rata
+  if (FM.size) {
+    const fx = x / 4, fz = z / 4, i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j;
+    h *= 1 - (fmk(i, j) * (1 - u) * (1 - v) + fmk(i + 1, j) * u * (1 - v) + fmk(i, j + 1) * (1 - u) * v + fmk(i + 1, j + 1) * u * v);
+  }
+  const mt = (Math.sin(x * .012 + 1.3) * Math.cos(z * .011) + .5 * Math.sin(x * .03 + z * .025)) * 9; // pegunungan jauh dari koloni
+  return h + mt * THREE.MathUtils.smoothstep(Math.hypot(x, z), 70, 220);
+}
+
+function createWorld(scene) {
+  scene.fog = new THREE.Fog(0xd98c61, 60, 200);
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 24, 12), new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false, fog: false,
+    vertexShader: 'varying float y;void main(){y=normalize(position).y;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+    fragmentShader: 'varying float y;void main(){gl_FragColor=vec4(mix(vec3(.85,.55,.38),vec3(.36,.30,.42),smoothstep(0.,.7,y)),1.);}'
+  })); scene.add(sky);
+  const disc = new THREE.Mesh(new THREE.SphereGeometry(12, 16, 8), new THREE.MeshBasicMaterial({ color: 0xfff0d0, fog: false }));
+  disc.position.set(60, 90, 40).normalize().multiplyScalar(350);
+  scene.add(disc);
+  const dOff = disc.position.clone();
+
+  scene.add(new THREE.HemisphereLight(0xffd2b0, 0x7a3a22, .7));
+  const sun = new THREE.DirectionalLight(0xfff0dc, 1.1);
+  sun.castShadow = true;
+  Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, near: 1, far: 250 });
+  sun.shadow.camera.updateProjectionMatrix();
+  sun.shadow.bias = -.0005; sun.shadow.normalBias = .05;
+  scene.add(sun, sun.target);
+
+  // Dunia luas tanpa batas: terrain dibangun per chunk 48 m di sekitar pemain, chunk jauh dibuang. Batu dekor coklat dihapus.
+  const CS = 48, SEG = 24, KR = 4, chunks = new Map(), colliders = [], c = new THREE.Color();
+  const gmat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
+  const fill = (g) => {
+    const p = g.attributes.position, nm = g.attributes.normal, col = g.attributes.color;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), z = p.getZ(i), h = heightAt(x, z), nx = heightAt(x - .5, z) - heightAt(x + .5, z), nz = heightAt(x, z - .5) - heightAt(x, z + .5), l = Math.hypot(nx, 1, nz);
+      p.setY(i, h); nm.setXYZ(i, nx / l, 1 / l, nz / l);
+      c.setHSL(.04 + .01 * Math.sin(x * .4) * Math.cos(z * .37), .55, THREE.MathUtils.clamp(.3 + h * .025 + .04 * Math.sin(x * 1.3 + z * .9), .18, .55));
+      c.toArray(col.array, i * 3);
+    }
+    p.needsUpdate = nm.needsUpdate = col.needsUpdate = true; g.computeBoundingSphere();
+  };
+  const mkChunk = (cx, cz) => {
+    const g = new THREE.PlaneGeometry(CS, CS, SEG, SEG).rotateX(-Math.PI / 2).translate(cx * CS, 0, cz * CS);
+    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 3), 3));
+    fill(g);
+    const mesh = new THREE.Mesh(g, gmat); mesh.receiveShadow = true; scene.add(mesh);
+    chunks.set(cx + ',' + cz, { cx, cz, mesh });
+  };
+  let last = '', pending = true; const dirty = new Set();
+  const stream = (pos, budget) => {
+    const cx0 = Math.round(pos.x / CS), cz0 = Math.round(pos.z / CS), key = cx0 + ',' + cz0;
+    if (key === last && !pending) return;
+    last = key;
+    for (const [k, ch] of chunks) if (Math.abs(ch.cx - cx0) > KR + 1 || Math.abs(ch.cz - cz0) > KR + 1) { scene.remove(ch.mesh); ch.mesh.geometry.dispose(); chunks.delete(k); }
+    const todo = [];
+    for (let a = -KR; a <= KR; a++) for (let b = -KR; b <= KR; b++) if (!chunks.has((cx0 + a) + ',' + (cz0 + b))) todo.push([cx0 + a, cz0 + b, a * a + b * b]);
+    todo.sort((u, v) => u[2] - v[2]).slice(0, budget).forEach(([cx, cz]) => mkChunk(cx, cz));
+    pending = todo.length > budget;
+  };
+  stream({ x: 0, z: 8 }, 30);
+
+  return { sun, colliders, reshape() { chunks.forEach((ch) => fill(ch.mesh.geometry)); },
+    flatten(x, z, r) { // ratakan tanah di bawah bangunan baru (chunk diperbarui di flush)
+      const q = r + 6;
+      for (let i = Math.floor((x - q) / 4); i <= Math.ceil((x + q) / 4); i++) for (let j = Math.floor((z - q) / 4); j <= Math.ceil((z + q) / 4); j++) if (Math.hypot(i * 4 - x, j * 4 - z) <= q) FM.add((i + 4096) * 8192 + j + 4096);
+      for (let a = Math.round((x - q - 4) / CS); a <= Math.round((x + q + 4) / CS); a++) for (let b = Math.round((z - q - 4) / CS); b <= Math.round((z + q + 4) / CS); b++) dirty.add(a + ',' + b);
+    },
+    flush() { dirty.forEach((k) => { const ch = chunks.get(k); if (ch) fill(ch.mesh.geometry); }); dirty.clear(); }, follow(pos) { // bayangan, langit, dan chunk mengikuti pemain
+    stream(pos, 2);
+    sky.position.set(pos.x, 0, pos.z); disc.position.copy(dOff).add(sky.position);
+    sun.position.set(pos.x + 60, pos.y + 90, pos.z + 40);
+    sun.target.position.copy(pos); sun.target.updateMatrixWorld();
+  } };
+}
+
+/* ===== INPUT (keyboard, drag kamera, joystick, tombol layar) ===== */
+class Input {
+  constructor(canvas) {
+    this.touch = matchMedia('(pointer:coarse)').matches;
+    this.keys = {}; this.jx = 0; this.jy = 0; this.jrun = false; this.jbtn = false;
+    this.lx = 0; this.ly = 0; this.onAction = null; this.px = 0; this.py = 0; this.mouse = false; this.tapq = null; this.dbtn = false;
+    const act = { Escape: 'pause', KeyP: 'pause', KeyE: 'interact', KeyB: 'build' };
+    addEventListener('keydown', (e) => {
+      this.keys[e.code] = true;
+      if (e.code === 'Space' && e.target.tagName !== 'INPUT') e.preventDefault();
+      if (act[e.code] && !e.repeat) this.onAction && this.onAction(act[e.code]);
+    });
+    addEventListener('keyup', (e) => { this.keys[e.code] = false; });
+    addEventListener('blur', () => { this.keys = {}; });
+
+    const joy = $('joy'), knob = joy.firstElementChild;
+    const move = (e) => {
+      const r = joy.getBoundingClientRect(), R = r.width / 2;
+      let dx = e.clientX - (r.left + R), dy = e.clientY - (r.top + R);
+      const d = Math.hypot(dx, dy) || 1, k = Math.min(d, R) / d;
+      dx *= k; dy *= k;
+      knob.style.transform = `translate(${dx}px,${dy}px)`;
+      this.jx = dx / R; this.jy = -dy / R;
+      this.jrun = Math.hypot(this.jx, this.jy) > .9;
+    };
+    const end = () => { joy.onpointermove = null; knob.style.transform = ''; this.jx = this.jy = 0; this.jrun = false; };
+    joy.onpointerdown = (e) => { joy.setPointerCapture(e.pointerId); move(e); joy.onpointermove = move; };
+    joy.onpointerup = joy.onpointercancel = end;
+
+    // Kamera: geser jari (HP) atau tahan klik dan geser (PC)
+    let drag = null;
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    canvas.addEventListener('pointerdown', (e) => { drag = { id: e.pointerId, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t: performance.now() }; canvas.setPointerCapture(e.pointerId); });
+    canvas.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'mouse') { this.px = e.clientX; this.py = e.clientY; this.mouse = true; }
+      if (!drag || e.pointerId !== drag.id) return;
+      const k = e.pointerType === 'touch' ? 1.2 : 1;
+      this.lx += (e.clientX - drag.x) * k; this.ly += (e.clientY - drag.y) * k;
+      drag.x = e.clientX; drag.y = e.clientY;
+    });
+    const stop = (e) => { if (drag && e.pointerId === drag.id) drag = null; };
+    canvas.addEventListener('pointerup', (e) => {
+      if (drag && e.pointerId === drag.id && performance.now() - drag.t < 350 && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 8) this.tapq = { x: e.clientX, y: e.clientY, mouse: e.pointerType === 'mouse' };
+      stop(e);
+    });
+    canvas.addEventListener('pointercancel', stop);
+
+    const jump = $('bJump');
+    jump.onpointerdown = () => { this.jbtn = true; };
+    jump.onpointerup = jump.onpointerleave = jump.onpointercancel = () => { this.jbtn = false; };
+    const dn = $('bAct');
+    dn.onpointerdown = () => { this.dbtn = true; this.onAction && this.onAction('interact'); };
+    dn.onpointerup = dn.onpointerleave = dn.onpointercancel = () => { this.dbtn = false; };
+    $('bBuild').onpointerdown = () => this.onAction && this.onAction('build');
+  }
+  poll() {
+    const k = this.keys, kx = (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0), ky = (k.KeyW ? 1 : 0) - (k.KeyS ? 1 : 0), kb = kx || ky;
+    const out = { mx: kb ? kx : this.jx, my: kb ? ky : this.jy, run: !!(k.ShiftLeft || k.ShiftRight) || this.jrun, jump: !!k.Space || this.jbtn, lx: this.lx, ly: this.ly, down: !!(k.KeyC || k.KeyQ) || this.dbtn, tap: this.tapq, ptr: this.mouse ? [this.px, this.py] : null };
+    this.lx = this.ly = 0; this.tapq = null;
+    return out;
+  }
+}
+
+/* ===== PEMAIN (astronaut, gerak, tabrakan, kamera) ===== */
+const mat = (color, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: .6 }, o));
+const SUIT = mat(0xe8edf1), GREY = mat(0x8d949b), GOLD = mat(0xd9a441, { metalness: .9, roughness: .2 });
+const ACC = mat(0x5ee6d0, { emissive: 0x2fb8a4, emissiveIntensity: .6 });
+const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+
+class Player {
+  constructor(scene, camera, colliders) {
+    this.cam = camera; this.colliders = colliders;
+    this.obj = new THREE.Group(); scene.add(this.obj);
+    const part = (geo, m, x, y, z, parent = this.obj) => {
+      const mesh = new THREE.Mesh(geo, m); mesh.position.set(x, y, z); mesh.castShadow = true; parent.add(mesh); return mesh;
+    };
+    part(box(.6, .7, .4), SUIT, 0, 1.15, 0);                    // badan
+    part(box(.46, .55, .22), GREY, 0, 1.2, -.3);                // tabung oksigen
+    part(box(.3, .08, .02), ACC, 0, 1.3, .21);                  // panel dada
+    part(new THREE.SphereGeometry(.3, 16, 12), SUIT, 0, 1.75, 0); // helm
+    part(new THREE.SphereGeometry(.24, 16, 12), GOLD, 0, 1.75, .14).scale.set(1, .85, .75); // visor
+    const limb = (w, h, x, y) => {
+      const pivot = new THREE.Group(); pivot.position.set(x, y, 0); this.obj.add(pivot);
+      part(box(w, h, w * 1.1), SUIT, 0, -h / 2, 0, pivot); return pivot;
+    };
+    this.legs = [limb(.22, .8, -.15, .8), limb(.22, .8, .15, .8)];
+    this.arms = [limb(.16, .6, -.4, 1.45), limb(.16, .6, .4, 1.45)];
+    this.pitch = .35; this.phase = 0; this.sw = 0; this.mineK = -1; this.lock = false; this.solid = null; this.held = null;
+    this.reset();
+  }
+  reset() {
+    this.obj.position.set(0, heightAt(0, 8), 8);
+    this.obj.rotation.y = Math.PI;
+    this.yaw = 0; this.vy = 0; this.ground = true;
+  }
+  update(dt, i) {
+    this.yaw -= i.lx * .0035;
+    this.pitch = THREE.MathUtils.clamp(this.pitch + i.ly * .003, .08, 1.3);
+    const p = this.obj.position, len = this.lock ? 0 : Math.hypot(i.mx, i.my), moving = len > .05;
+    if (moving) {
+      const s = Math.sin(this.yaw), c = Math.cos(this.yaw), k = Math.min(len, 1) / len;
+      const dx = (-s * i.my + c * i.mx) * k, dz = (-c * i.my - s * i.mx) * k; // relatif arah kamera
+      const v = i.run ? 8 : 4.5;
+      const ox = p.x, oz = p.z, nx = ox + dx * v * dt, nz = oz + dz * v * dt, sd = this.solid; // bangunan solid, per sumbu agar bisa menyusur dinding
+      p.x = nx; p.z = oz; if (sd && sd(p.x, p.z) && !sd(ox, oz)) p.x = ox;
+      p.z = nz; if (sd && sd(p.x, p.z) && !sd(p.x, oz)) p.z = oz;
+      const o = this.obj.rotation;
+      let d = Math.atan2(dx, dz) - o.y;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      o.y += d * Math.min(1, dt * 12);
+      this.phase += v * dt * 1.4;
+    }
+    for (const r of this.colliders) { // tabrakan dengan batu besar
+      const ax = p.x - r.x, az = p.z - r.z, d = Math.hypot(ax, az), m = r.r + .4;
+      if (d > 0 && d < m) { p.x = r.x + (ax / d) * m; p.z = r.z + (az / d) * m; }
+    }
+    const g = heightAt(p.x, p.z);
+    this.vy -= 10 * dt;
+    if (i.jump && this.ground) this.vy = 6.5;
+    p.y += this.vy * dt;
+    this.ground = p.y <= g;
+    if (this.ground) { p.y = g; this.vy = 0; }
+
+    this.sw += ((moving ? Math.sin(this.phase) * .8 : 0) - this.sw) * Math.min(1, dt * 12);
+    this.legs[0].rotation.x = this.sw; this.legs[1].rotation.x = -this.sw;
+    this.arms[0].rotation.x = -this.sw; this.arms[1].rotation.x = this.sw;
+    if (this.held) this.arms[1].rotation.x = -.35 + this.sw * .3;
+    if (this.mineK >= 0) { // animasi menambang: angkat alat, lalu hantam ke bawah
+      const k = this.mineK, a = k < .4 ? -2.4 * (k / .4) : -2.4 + 2.9 * ((k - .4) / .6) ** 2;
+      this.arms[1].rotation.x = a; this.arms[0].rotation.x = a * .6;
+    }
+
+    const D = 7, cp = Math.cos(this.pitch), ty = p.y + 1.5, cam = this.cam; // kamera orbit di belakang
+    cam.position.set(p.x + Math.sin(this.yaw) * cp * D, ty + Math.sin(this.pitch) * D, p.z + Math.cos(this.yaw) * cp * D);
+    cam.position.y = Math.max(cam.position.y, heightAt(cam.position.x, cam.position.z) + .7);
+    cam.lookAt(p.x, ty, p.z);
+  }
+}
+
+/* ===== UI (menu jeda, toast, teks HUD) ===== */
+function initUI({ quality, onQuality, onReset }) {
+  const ui = { paused: true, _t: 0, _pos: '' };
+  const pause = $('pause'), q = $('quality'), toast = $('toast');
+  q.textContent = `Grafis: ${quality}`;
+  ui.pause = () => { ui.paused = true; pause.hidden = false; };
+  ui.resume = () => { ui.paused = false; pause.hidden = true; $('resume').textContent = 'Lanjutkan'; };
+  ui.toggle = () => (ui.paused ? ui.resume() : ui.pause());
+  ui.toast = (msg) => {
+    toast.textContent = msg; toast.classList.add('on');
+    clearTimeout(ui._t); ui._t = setTimeout(() => toast.classList.remove('on'), 1800);
+  };
+  ui.setPos = (x, z) => {
+    const s = `X ${Math.round(x)} Z ${Math.round(z)}`;
+    if (s !== ui._pos) { ui._pos = s; $('pos').textContent = s; }
+  };
+  $('resume').onclick = ui.resume;
+  $('pausebtn').onclick = ui.pause;
+  q.onclick = () => { q.textContent = `Grafis: ${onQuality()}`; };
+  $('reset').onclick = () => { onReset(); ui.resume(); };
+  return ui;
+}
+
+/* ===== PEMBANGUNAN (Phase 2): katalog modular, ghost, snapping, mode edit, undo, blueprint ===== */
+const LV = 2.5; // tinggi satu lantai
+const RES = ['Besi', 'Regolith', 'Kaca', 'Polimer', 'Elektronik'], RES_S = ['Fe', 'Rg', 'Gl', 'Po', 'El'];
+const lackOf = (cost, inv) => 'Kurang: ' + cost.map((c, i) => (c > inv[i] ? `${RES[i]} ${inv[i]}/${c}` : '')).filter(Boolean).join(', ');
+const START = [150, 100, 40, 40, 25];
+const PALETTE = [null, 0xe8edf1, 0xff7a3d, 0x5ee6d0, 0x4a90c2, 0xd9c14a, 0x3b4249];
+const GROUPS = ['Modul', 'Peralatan', 'Utilitas', 'Eksterior', 'Penyimpanan', 'Kendaraan']; // Struktur disembunyikan (sudah ada kubah); item lama tetap bisa dimuat
+const MODES = [['build', 'Bangun', 'Arahkan ke tanah (klik / ketuk), lalu Tempatkan'], ['move', 'Pindah', 'Arahkan ke komponen, lalu Terapkan'],
+  ['rotate', 'Putar', 'Arahkan ke komponen, lalu Terapkan'], ['delete', 'Hapus', 'Material kembali penuh saat dihapus'],
+  ['color', 'Warna', 'Pilih warna, arahkan ke komponen, lalu Terapkan'], ['bp', 'Blueprint', 'Simpan atau muat rancangan (3 slot)']];
+const WALL = [2, 2.5, .2, 0, 1.25, 0, 0xc9d0d6];
+// parts: [w,h,d,x,y,z,warna,opsi] (opsi g = kaca, c = silinder). kind = cara snapping, l = slot agar tidak tumpang tindih
+// Modul berongga: tiap modul punya port (x,z,arah) di ujung; port yang berhadapan menyambung otomatis
+const D4 = [[0, 1], [1, 0], [0, -1], [-1, 0]], RT = 1.5, HT = 2.7, SY = HT / RT, FL = .1, MP = [[0, 0, 0, 0, 0, 0, 0xc9d0d6]];
+const mod = (id, n, cost, shape, fp, ports) => ({ id, n, g: 'Modul', kind: 'mod', cost, parts: MP, shape, fp, ports });
+const dome = (id, n, R, hs, cost) => mod(id, n, cost, ['dome', R, hs], [['c', 0, 0, R]], D4.map(([x, z]) => [x * R, z * R, x, z]));
+const hall = (id, n, L, cost) => mod(id, n, cost, ['hall', L], [['r', 0, 0, RT, L / 2]], [[0, L / 2, 0, 1], [0, -L / 2, 0, -1]]);
+const joint = (id, n, ds, cost) => mod(id, n, cost, ['joint', ds], [['c', 0, 0, RT], ...ds.map(([x, z]) => ['r', x * 1.5, z * 1.5, x ? 1.5 : RT, z ? 1.5 : RT])], ds.map(([x, z]) => [x * 3, z * 3, x, z]));
+const MODS = [dome('domeL', 'Kubah besar', 4, .85, [12, 8, 16, 6, 2]), dome('domeS', 'Kubah kecil', 2.5, 1.1, [6, 4, 8, 3, 1]),
+  hall('hall4', 'Lorong 4 m', 4, [6, 4, 8, 3, 1]), hall('hall8', 'Lorong 8 m', 8, [11, 7, 15, 5, 2]),
+  joint('corner', 'Lorong siku', [[0, 1], [1, 0]], [7, 4, 9, 3, 1]), joint('tee', 'Simpang T', [[0, 1], [1, 0], [-1, 0]], [9, 5, 11, 4, 2]), joint('cross', 'Simpang +', D4, [11, 6, 13, 5, 2])];
+const rotv = (x, z, r) => [[x, z], [z, -x], [-x, -z], [-z, x]][r & 3]; // sama dengan rotation.y = r * 90 derajat
+const shapesOf = (s, x, z, r) => s.fp.map((f) => { const [a, b] = rotv(f[1], f[2], r); return f[0] === 'c' ? { c: 1, x: x + a, z: z + b, r: f[3] } : { x: x + a, z: z + b, hx: r % 2 ? f[4] : f[3], hz: r % 2 ? f[3] : f[4] }; });
+const portsOf = (s, x, z, r) => s.ports.map(([px, pz, dx, dz]) => { const [a, b] = rotv(px, pz, r), [c, d] = rotv(dx, dz, r); return { x: x + a, z: z + b, dx: c, dz: d }; });
+const hit = (a, b) => { // tumpang tindih (sentuhan tepi diizinkan)
+  if (a.c && b.c) return Math.hypot(a.x - b.x, a.z - b.z) < a.r + b.r - .12;
+  if (a.c || b.c) { const [c, q] = a.c ? [a, b] : [b, a]; return Math.hypot(Math.max(Math.abs(c.x - q.x) - q.hx, 0), Math.max(Math.abs(c.z - q.z) - q.hz, 0)) < c.r - .12; }
+  return Math.abs(a.x - b.x) < a.hx + b.hx - .12 && Math.abs(a.z - b.z) < a.hz + b.hz - .12;
+};
+const CAT = [
+  ...MODS,
+  { id: 'floor', n: 'Lantai', g: 'Struktur', kind: 'cell', l: 'f', cost: [2, 3, 0, 0, 0], parts: [[2, .2, 2, 0, .1, 0, 0x9aa3ab]] },
+  { id: 'wall', n: 'Dinding', g: 'Struktur', kind: 'edge', l: 'w', cost: [3, 2, 0, 0, 0], parts: [WALL] },
+  { id: 'window', n: 'Jendela', g: 'Struktur', kind: 'edge', l: 'w', cost: [2, 1, 2, 0, 0], parts: [WALL, [1.2, 1, .25, 0, 1.4, 0, 0x6fd3ff, 'g']] },
+  { id: 'door', n: 'Pintu', g: 'Struktur', kind: 'edge', l: 'w', cost: [3, 1, 0, 1, 0], parts: [WALL, [1, 2, .25, 0, 1, 0, 0x5b6670]] },
+  { id: 'roof', n: 'Atap', g: 'Struktur', kind: 'cell', l: 'r', cost: [2, 2, 0, 1, 0], parts: [[2, .2, 2, 0, 2.4, 0, 0x7d868e]] },
+  { id: 'stairs', n: 'Tangga', g: 'Struktur', kind: 'cell', l: 's', cost: [4, 2, 0, 0, 0], parts: [0, 1, 2, 3, 4].map((i) => [2, (i + 1) * .5, .4, 0, (i + 1) * .25, -.8 + i * .4, 0xaab2b8]) },
+  { id: 'glass', n: 'Panel kaca', g: 'Struktur', kind: 'edge', l: 'w', cost: [0, 0, 3, 1, 0], parts: [[2, 2.5, .05, 0, 1.25, 0, 0x8fdcff, 'g']] },
+  { id: 'airlock', n: 'Airlock', g: 'Struktur', kind: 'cell', l: 'a', cost: [8, 2, 2, 2, 1], parts: [[2, 2.5, 2, 0, 1.25, 0, 0xd8dde1], [.9, 2, .1, 0, 1, 1.02, 0x5ee6d0]] },
+  { id: 'opipe', n: 'Pipa oksigen', g: 'Utilitas', kind: 'edge', l: 'o', cost: [1, 0, 0, 1, 0], parts: [[2, .14, .14, 0, .3, 0, 0xcfe8ff]] },
+  { id: 'cable', n: 'Kabel listrik', g: 'Utilitas', kind: 'edge', l: 'e', cost: [0, 0, 0, 1, 1], parts: [[2, .1, .1, 0, .15, 0, 0xd9c14a]] },
+  { id: 'wpipe', n: 'Pipa air', g: 'Utilitas', kind: 'edge', l: 'a', cost: [1, 0, 0, 1, 0], parts: [[2, .14, .14, 0, .5, 0, 0x4ad8e6]] },
+  { id: 'ogen', n: 'Generator O2', g: 'Peralatan', kind: 'free', cost: [6, 2, 0, 2, 3], parts: [[1, 1.6, 1, 0, .8, 0, 0x9fb4c8], [.5, .3, .05, 0, 1.2, .52, 0x5ee6d0]] },
+  { id: 'tank', n: 'Tangki air', g: 'Peralatan', kind: 'free', cost: [4, 0, 1, 3, 0], parts: [[1.2, 1.4, 1.2, 0, .7, 0, 0x4a90c2, 'c']] },
+  { id: 'bench', n: 'Workbench', g: 'Peralatan', kind: 'free', cost: [4, 0, 0, 1, 1], parts: [[1.6, .9, .8, 0, .45, 0, 0x8a6b4a], [1.7, .1, .9, 0, .95, 0, 0xc9a27a]] },
+  { id: 'green', n: 'Alat greenhouse', g: 'Peralatan', kind: 'free', cost: [3, 0, 4, 2, 1], parts: [[1.5, .5, 1.5, 0, .25, 0, 0x6b4a2e], [1.3, .4, 1.3, 0, .6, 0, 0x4caf50]] },
+  { id: 'pillar', n: 'Pilar', g: 'Eksterior', kind: 'node', l: 'p', cost: [2, 0, 0, 0, 0], parts: [[.3, 2.5, .3, 0, 1.25, 0, 0xb8c0c7]] },
+  { id: 'solar', n: 'Panel surya', g: 'Eksterior', kind: 'free', cost: [2, 0, 3, 1, 2], parts: [[.1, 1, .1, 0, .5, 0, 0x777777], [2, .06, 1.2, 0, 1.1, 0, 0x1d3b6e]] },
+  { id: 'crate', n: 'Kontainer', g: 'Penyimpanan', kind: 'free', cost: [4, 0, 0, 2, 0], parts: [[1.2, 1.2, 1.2, 0, .6, 0, 0xc07a3a]] },
+];
+CAT.push({ id: 'med', n: 'Ruang medis', g: 'Peralatan', kind: 'free', cost: [5, 0, 2, 3, 3], parts: [[1.4, 1.2, 1, 0, .6, 0, 0xe8edf1], [.5, .5, .05, 0, .9, .52, 0xff5a4a]] });
+CAT.push({ id: 'reactor', n: 'Reaktor mini', g: 'Eksterior', kind: 'free', cost: [18, 0, 6, 8, 10], parts: [[1.6, 1.2, 1.6, 0, .6, 0, 0x4a5560], [.9, .35, .9, 0, 1.4, 0, 0x7ee0ff]] });
+CAT.push({ id: 'miner', n: 'Mesin tambang', g: 'Peralatan', kind: 'free', cost: [14, 4, 0, 8, 8], parts: [[1.4, .5, 1.4, 0, .25, 0, 0x5a626b], [.6, 1.4, .6, 0, 1.2, 0, 0xe2873c], [.3, .6, .3, 0, .3, 0, 0x9aa3ab]] });
+CAT.push({ id: 'wgen', n: 'Generator air', g: 'Peralatan', kind: 'free', cost: [6, 2, 2, 2, 3], parts: [[1, 1.5, 1, 0, .75, 0, 0x8fb8d8], [.6, .3, .05, 0, 1.1, .52, 0x4ad8e6]] });
+CAT.push({ id: 'rover', n: 'Rover surya', g: 'Kendaraan', kind: 'free', cost: [40, 20, 10, 20, 30], parts: [[2, .55, 3.2, 0, .85, 0, 0xd8dde2], [1.6, .6, 1.3, 0, 1.4, -.2, 0xd8dde2], [2.4, .06, 2, 0, 1.78, -.2, 0x1d3b6e]] });
+CAT.forEach((c) => { if (['cable', 'opipe', 'wpipe'].includes(c.id)) { c.line = true; c.cost = [0, 0, 0, 0, 0]; } }); // jalur: gratis, ditarik titik ke titik
+const DESC = {
+  floor: 'Lantai 2x2 m, dasar ruangan.', wall: 'Dinding penyekat, dipasang di tepi sel lantai.', window: 'Dinding berjendela kaca untuk cahaya dan pemandangan.',
+  door: 'Dinding dengan pintu.', roof: 'Atap penutup ruangan.', stairs: 'Tangga untuk naik ke level di atas.', glass: 'Panel kaca tembus pandang.',
+  airlock: 'Ruang transisi udara, menahan oksigen saat keluar masuk.', opipe: 'Pipa oksigen. Gratis, tarik dari titik ke titik.',
+  cable: 'Kabel listrik bawah tanah (terlihat hanya di mode bangun). Cukup 1 kabel menyentuh bangunan, semua modul tersambung teraliri. Gratis.', wpipe: 'Pipa air. Gratis, tarik dari titik ke titik.',
+  conv: 'Supply transporter: memindahkan air dan makanan dari produsen ke penyimpanan (Generator air ke Tangki, Greenhouse ke Kontainer). Tarik dari titik ke titik.',
+  ogen: 'Generator O2: mengisi oksigen baju astronot yang berada di dalam kubah/lorong tersambung, butuh listrik. Tidak berpengaruh di luar.', wgen: 'Generator air: menghasilkan air, butuh listrik. Hubungkan ke Tangki lewat Supply transporter.',
+  tank: 'Tangki air: hanya menampung air (maks 100). Koloni minum dari sini.', bench: 'Workbench: upgrade peralatan (+50% produksi).',
+  green: 'Greenhouse: menumbuhkan makanan, butuh air dan listrik. Hubungkan ke Kontainer lewat Supply transporter.', med: 'Ruang medis: syarat Level 2.',
+  pillar: 'Pilar penyangga struktur.', solar: 'Panel surya: menghasilkan listrik.', reactor: 'Reaktor mini: pembangkit besar (5x panel surya). Perlu saat bangunan makin besar dan boros listrik.',
+  crate: 'Kontainer: menyimpan makanan (maks 40). Ambil lewat Aksi, lalu tekan Aksi lagi untuk makan.',
+  dome: 'Kubah hunian: ruang luas dengan 4 pintu tetap. Sambungkan ke lorong.', hall: 'Lorong penghubung antar modul. Pintu hanya di ujung yang terbuka.',
+  joint: 'Simpangan lorong untuk percabangan (siku, T, atau +).' };
+Object.assign(DESC, {
+  tank: 'Tangki air: menampung air (maks 100) dan bisa dipakai: Aksi = minum. Dekatkan ke Generator air (maks 3,5 m) atau sambung Pipa air.',
+  wgen: 'Generator air: menghasilkan air, butuh listrik. Otomatis mengisi Tangki yang dekat (maks 3,5 m) atau tersambung Pipa air.',
+  wpipe: 'Pipa air: sambungkan Generator air ke Tangki. Gratis, tarik titik ke titik; ujungnya otomatis menempel ke alat.',
+  opipe: 'Pipa oksigen: sambungkan Generator O2 ke kubah/lorong. Gratis. Generator O2 yang diletakkan dekat kubah juga langsung bekerja.',
+  ogen: 'Generator O2: letakkan di dalam atau dekat kubah (maks 3 m), atau sambung Pipa oksigen. Mengisi oksigen baju di dalam modul, butuh listrik.',
+  green: 'Greenhouse: menumbuhkan makanan (butuh air dan listrik). Aksi = panen langsung, tanpa penyimpanan.',
+  crate: 'Kontainer: penyimpanan barang. Aksi menyimpan semua bahan; jika kontainer berisi, Aksi mengambil semuanya.',
+  miner: 'Mesin tambang: pasang tepat di titik suplai (batu, gundukan, puing). Menambang sendiri terus-menerus (butuh listrik), titik suplai tidak habis. Aksi = ambil hasil.',
+  rover: 'Rover surya: kendaraan cepat dengan alat tambang otomatis. Pasang untuk merakit, pasang lagi untuk memindahkan.',
+  cable: 'Kabel listrik bawah tanah (garis kuning hanya di mode bangun, area hijau = teraliri). Cukup 1 kabel menyentuh bangunan; ujungnya otomatis menempel ke alat.' });
+const costTxt = (s) => s.cost.map((c, i) => (c ? `${RES[i]} ${c}` : '')).filter(Boolean).join(', ') || 'Gratis';
+
+function initBuilding(scene, camera, player, ui, world) {
+  const root = new THREE.Group(), items = [], undoStack = [], rc = new THREE.Raycaster();
+  const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0)), v3 = new THREE.Vector3(), geos = {}, bps = {};
+  const S = { on: false, mode: 'build', g: 'Modul', sel: 0, rot: 0, lv: 0, col: 0, carry: null, bp: 1, min: false, ndc: new THREE.Vector2(0, 0) };
+  const hooks = {};
+  const F = { pos: new THREE.Vector3(), yaw: 0, pitch: .75 }, focus = new THREE.Vector3(), MG = {};
+  let inv = START.slice(), nid = 1, hl = null, gSpec = null, ghost = null, hintTxt = '', grid = null, portsDirty = true, lastA = { x: 0, z: 0 };
+  const ghostMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: .5, depthWrite: false, side: THREE.DoubleSide });
+  const portG = new THREE.Group(), portGeo = new THREE.TorusGeometry(1.15, .08, 6, 20), portMat = new THREE.MeshBasicMaterial({ color: 0x5ee6d0, transparent: true, opacity: .85, depthTest: false });
+  scene.add(root, portG);
+  function buildGrid() {
+    if (grid) { scene.remove(grid); grid.geometry.dispose(); }
+    grid = new THREE.GridHelper(60, 30, 0x5ee6d0, 0x5ee6d0);
+    grid.position.y = .03; grid.material.transparent = true; grid.material.opacity = .22; grid.visible = S.on;
+    scene.add(grid);
+  }
+  buildGrid();
+  function refreshPorts() { // cincin hijau = port terbuka tempat modul bisa disambung
+    portG.clear();
+    for (const p of openPorts()) {
+      const r = new THREE.Mesh(portGeo, portMat);
+      r.position.set(p.x, p.lv * LV + 1.3, p.z); r.rotation.y = Math.atan2(p.dx, p.dz); r.scale.y = 1.15; r.renderOrder = 9;
+      portG.add(r);
+    }
+    portsDirty = false;
+  }
+  function fly(dt, i) { // kamera bebas saat mode bangun
+    F.yaw -= i.lx * .0035; F.pitch = THREE.MathUtils.clamp(F.pitch + i.ly * .003, -.4, 1.5);
+    const len = Math.hypot(i.mx, i.my), sp = (i.run ? 26 : 10) * dt, L = 1e6, cl = THREE.MathUtils.clamp;
+    if (len > .05) { const s = Math.sin(F.yaw), c = Math.cos(F.yaw), k = Math.min(len, 1) / len; F.pos.x += (-s * i.my + c * i.mx) * k * sp; F.pos.z += (-c * i.my - s * i.mx) * k * sp; }
+    F.pos.y += ((i.jump ? 1 : 0) - (i.down ? 1 : 0)) * sp * .8;
+    F.pos.x = cl(F.pos.x, -L, L); F.pos.z = cl(F.pos.z, -L, L); F.pos.y = cl(F.pos.y, heightAt(F.pos.x, F.pos.z) + 1, 60);
+    const cp = Math.cos(F.pitch);
+    camera.position.copy(F.pos);
+    camera.lookAt(F.pos.x - Math.sin(F.yaw) * cp, F.pos.y - Math.sin(F.pitch), F.pos.z - Math.cos(F.yaw) * cp);
+    camera.updateMatrixWorld();
+    focus.set(F.pos.x - Math.sin(F.yaw) * F.pos.y * .8, 0, F.pos.z - Math.cos(F.yaw) * F.pos.y * .8);
+  }
+  for (const n of [1, 2, 3]) { try { bps[n] = JSON.parse(localStorage.getItem('mc_bp' + n)); } catch (e) {} }
+
+  const say = (m) => ui.toast(m);
+  const hud = () => inv.forEach((v, i) => { $('r' + i).textContent = `${RES[i]} ${v}`; });
+  const afford = (s) => s.cost.every((c, i) => inv[i] >= c);
+  const pay = (s, k) => { s.cost.forEach((c, i) => { inv[i] -= k * c; }); hud(); };
+  const geo = (w, h, d, o) => {
+    const k = [w, h, d, o].join();
+    return geos[k] || (geos[k] = o === 'c' ? new THREE.CylinderGeometry(w / 2, w / 2, h, 16) : new THREE.BoxGeometry(w, h, d));
+  };
+  const geom = (k, f) => MG[k] || (MG[k] = f()), PI = Math.PI;
+  function gen(spec, color, gm) { // bangun modul berongga (kaca + rangka + lantai + lampu)
+    const g = new THREE.Group(), [k, a, b] = spec.shape, m = gm ? { f: gm, g: gm, fl: gm, l: gm } : {
+      f: new THREE.MeshStandardMaterial({ color: color || 0xc9d0d6, roughness: .5, metalness: .3 }),
+      g: new THREE.MeshStandardMaterial({ color: 0x8fdcff, roughness: .1, transparent: true, opacity: .3, side: THREE.DoubleSide, depthWrite: false }),
+      fl: new THREE.MeshStandardMaterial({ color: 0x7d868e, roughness: .9 }), l: new THREE.MeshBasicMaterial({ color: 0xfff1c9 }) };
+    const add = (par, geo, t, x, y, z, sc, ry) => {
+      const me = new THREE.Mesh(geo, m[t]); me.position.set(x, y, z);
+      if (sc) me.scale.set(sc[0], sc[1], sc[2]);
+      if (ry) me.rotation.y = ry;
+      if (t === 'g') me.userData.glass = true; else if (!gm) { me.castShadow = t === 'f'; me.receiveShadow = t === 'fl'; }
+      par.add(me); if (t === 'f' && !g.userData.main) g.userData.main = me;
+    };
+    const rib = (r, w) => geom('rib' + r + w, () => new THREE.TorusGeometry(r, w, 5, 28, PI));
+    const tube = (par, L) => {
+      add(par, geom('tg' + L, () => new THREE.CylinderGeometry(RT, RT, L, 20, 1, true, PI / 2, PI).rotateX(PI / 2)), 'g', 0, FL, 0, [1, SY, 1]);
+      const n = Math.ceil(L / 1.5) + 1;
+      for (let i = 0; i < n; i++) add(par, rib(RT, .07), 'f', 0, FL, -L / 2 + i * L / (n - 1), [1, SY, 1]);
+      add(par, geom('fl' + L, () => new THREE.BoxGeometry(2 * RT, FL, L)), 'fl', 0, FL / 2, 0);
+      add(par, geom('li' + L, () => new THREE.BoxGeometry(.14, .05, L * .8)), 'l', 0, FL + HT - .08, 0);
+    };
+    if (k === 'hall') tube(g, a);
+    else if (k === 'dome') {
+      const wy = FL + HT; // dinding tegak setinggi lorong, kubah menumpang di atasnya
+      add(g, geom('dw' + a, () => new THREE.CylinderGeometry(a, a, HT, 28, 1, true)), 'g', 0, FL + HT / 2, 0);
+      add(g, geom('dg' + a, () => new THREE.SphereGeometry(a, 28, 10, 0, 2 * PI, 0, PI / 2)), 'g', 0, wy, 0, [1, b, 1]);
+      add(g, geom('dr' + a, () => new THREE.TorusGeometry(a, .13, 6, 36).rotateX(PI / 2)), 'f', 0, wy, 0);
+      for (let i = 0; i < 4; i++) add(g, rib(a, .09), 'f', 0, wy, 0, [1, b, 1], i * PI / 4);
+      add(g, geom('dr' + a, () => new THREE.TorusGeometry(a, .13, 6, 36).rotateX(PI / 2)), 'f', 0, FL, 0);
+      add(g, geom('df' + a, () => new THREE.CylinderGeometry(a, a, FL, 28)), 'fl', 0, FL / 2, 0);
+      add(g, geom('dl', () => new THREE.CylinderGeometry(.5, .5, .06, 12)), 'l', 0, wy + a * b - .1, 0);
+      for (const [px, pz, dx, dz] of spec.ports) add(g, rib(RT, .1), 'f', px, FL, pz, [1, SY, 1], Math.atan2(dx, dz)); // bingkai pintu
+    } else {
+      add(g, geom('jg', () => new THREE.SphereGeometry(RT, 20, 8, 0, 2 * PI, 0, PI / 2)), 'g', 0, FL, 0, [1, SY, 1]);
+      add(g, geom('jf', () => new THREE.CylinderGeometry(RT, RT, FL, 20)), 'fl', 0, FL / 2, 0);
+      for (const [dx, dz] of a) { const arm = new THREE.Group(); arm.position.set(dx * 1.5, 0, dz * 1.5); arm.rotation.y = dx ? PI / 2 : 0; g.add(arm); tube(arm, 3); }
+    }
+    return g;
+  }
+  function makeObj(spec, color, gm) {
+    if (spec.shape) return gen(spec, color, gm);
+    const g = new THREE.Group();
+    spec.parts.forEach(([w, h, d, x, y, z, c, o], i) => {
+      const m = gm || new THREE.MeshStandardMaterial({ color: i === 0 && color ? color : c, roughness: .7, transparent: o === 'g', opacity: o === 'g' ? .45 : 1 });
+      const mesh = new THREE.Mesh(geo(w, h, d, o), m);
+      mesh.position.set(x, y, z); mesh.castShadow = mesh.receiveShadow = !gm; g.add(mesh);
+      if (i === 0) g.userData.main = mesh;
+    });
+    if (spec.id === 'cable' && !gm) { // kabel ditanam: badan di bawah tanah, penanda kuning hanya terlihat di mode bangun
+      g.children.forEach((c) => { c.position.y -= .5; });
+      const d = new THREE.Mesh(geom('cabd', () => new THREE.BoxGeometry(2, .03, .2)), new THREE.MeshBasicMaterial({ color: 0xd9c14a }));
+      d.position.set(0, .06, 0); d.visible = S.on; g.add(d); g.userData.decal = d;
+    }
+    return g;
+  }
+  const setT = (o, x, z, lv, rot) => { o.position.set(x, lv * LV, z); o.rotation.y = rot * Math.PI / 2; };
+  const rad = (it) => it.spec.kind === 'mod' ? shapesOf(it.spec, it.x, it.z, it.rot).reduce((m, s) => Math.max(m, Math.hypot(s.x - it.x, s.z - it.z) + (s.c ? s.r : Math.hypot(s.hx, s.hz))), 0) : 2;
+  const needTxt = (s) => s.cost.some((c) => c) ? s.cost.map((c, i) => c ? `${RES[i]} ${c}/${inv[i]}${inv[i] >= c ? '' : ' KURANG'}` : '').filter(Boolean).join(', ') + ' (butuh/punya)' : 'Gratis';
+  const anchorM = new THREE.Mesh(new THREE.SphereGeometry(.25, 12, 8), new THREE.MeshBasicMaterial({ color: 0x5ee6d0, depthTest: false })); anchorM.visible = false; anchorM.renderOrder = 9; scene.add(anchorM);
+  const autoRot = (a) => { const f = Math.floor, o = Math.round; return Math.hypot(a.x - (f(a.x / 2) * 2 + 1), a.z - o(a.z / 2) * 2) <= Math.hypot(a.x - o(a.x / 2) * 2, a.z - (f(a.z / 2) * 2 + 1)) ? 0 : 1; };
+  const attach = (it) => { world.flatten(it.x, it.z, rad(it)); setT(it.obj, it.x, it.z, it.lv, it.rot); root.add(it.obj); items.push(it); portsDirty = true; };
+  const detach = (it) => { root.remove(it.obj); items.splice(items.indexOf(it), 1); portsDirty = true; };
+  const tint = (it, c) => { it.color = c; it.obj.userData.main.material.color.setHex(c || it.spec.parts[0][6]); };
+  const create = (s, x, z, lv, rot, color) => {
+    const it = { id: 'c' + nid++, type: s.id, spec: s, x, z, lv, rot, scale: 1, color, cost: s.cost, obj: makeObj(s, color) };
+    it.obj.userData.item = it; attach(it); return it;
+  };
+
+  // Snapping: cell = tengah sel 2 m, edge = tepi sel, node = sudut sel, free = grid 1 m
+  const snap = (s, x, z, r) => {
+    const f = Math.floor, o = Math.round;
+    if (s.kind === 'mod') return [x, z];
+    if (s.kind === 'cell') return [f(x / 2) * 2 + 1, f(z / 2) * 2 + 1];
+    if (s.kind === 'edge') return r % 2 ? [o(x / 2) * 2, f(z / 2) * 2 + 1] : [f(x / 2) * 2 + 1, o(z / 2) * 2];
+    if (s.kind === 'node') return [o(x / 2) * 2, o(z / 2) * 2];
+    return [o(x), o(z)];
+  };
+  const key = (s, x, z, r) => `${s.kind}${s.l}|${x}|${z}|${s.kind === 'edge' ? r % 2 : 0}`;
+  const clash = (s, x, z, r, lv) => s.kind === 'mod' ? modClash(s, x, z, r, lv) : items.some((o) => o.lv === lv &&
+    (s.kind === 'free' ? o.spec.kind === 'free' && Math.hypot(o.x - x, o.z - z) < 1.1 : key(o.spec, o.x, o.z, o.rot) === key(s, x, z, r)));
+  const outside = () => false; // seluruh dunia boleh dibangun
+  function modClash(s, x, z, r, lv) {
+    const A = shapesOf(s, x, z, r);
+    return items.some((o) => o.lv === lv && o.spec.kind === 'mod' && shapesOf(o.spec, o.x, o.z, o.rot).some((b) => A.some((a) => hit(a, b))));
+  }
+  const inArea = () => true;
+  function openPorts() {
+    const all = [];
+    items.forEach((it) => { if (it.spec.kind === 'mod') portsOf(it.spec, it.x, it.z, it.rot).forEach((p) => { p.lv = it.lv; all.push(p); }); });
+    return all.filter((p) => !all.some((q) => q !== p && q.lv === p.lv && Math.abs(q.x - p.x) < .3 && Math.abs(q.z - p.z) < .3 && q.dx === -p.dx && q.dz === -p.dz));
+  }
+  // Modul: dekat port terbuka -> otomatis menyambung (rotasi dicoba berurutan mulai dari S.rot, tombol Putar ganti opsi)
+  function modTarget(s, a) {
+    const t = { x: Math.round(a.x), z: Math.round(a.z), lv: S.lv, rot: S.rot, ok: false, why: '', joined: false };
+    const test = (c) => !inArea(s, c.x, c.z, c.rot) ? 'Di luar lahan bangun' : clash(s, c.x, c.z, c.rot, S.lv) ? 'Menabrak modul lain' : !S.carry && !afford(s) ? lackOf(s.cost, inv) : '';
+    const d = (p) => Math.hypot(p.x - a.x, p.z - a.z);
+    const near = openPorts().filter((p) => p.lv === S.lv && d(p) < 5).sort((p, q) => d(p) - d(q));
+    let first = null;
+    for (const P of near) for (let k = 0; k < 4; k++) {
+      const r = (S.rot + k) & 3;
+      for (const q of s.ports) {
+        const [qx, qz] = rotv(q[0], q[1], r), [qdx, qdz] = rotv(q[2], q[3], r);
+        if (qdx !== -P.dx || qdz !== -P.dz) continue;
+        const c = { x: P.x - qx, z: P.z - qz, rot: r, joined: true }, why = test(c);
+        if (!why) return Object.assign(t, c, { ok: true });
+        first = first || Object.assign({}, c, { why });
+      }
+    }
+    if (first) return Object.assign(t, first);
+    t.why = test(t); t.ok = !t.why; return t;
+  }
+
+  // Titik bidik: sinar dari tengah layar ke bidang lantai (pitch kamera mengatur jarak)
+  function aim() {
+    rc.setFromCamera(S.ndc, camera);
+    plane.constant = -S.lv * LV;
+    const h = rc.ray.intersectPlane(plane, v3);
+    return h && h.distanceTo(camera.position) < 160 ? h : null;
+  }
+  function target(s) {
+    const a = aim();
+    if (!a) return { x: lastA.x, z: lastA.z, lv: S.lv, rot: S.rot, ok: false, why: 'Arahkan ke tanah' };
+    if (s.kind === 'mod') return modTarget(s, a);
+    lastA = { x: a.x, z: a.z };
+    if (s.id === 'miner' && !S.carry) { // mesin tambang otomatis menempel ke titik suplai terdekat
+      const nd = hooks.nodeAt && hooks.nodeAt(a.x, a.z, 8);
+      if (!nd) return { x: Math.round(a.x), z: Math.round(a.z), lv: S.lv, rot: S.rot, ok: false, why: 'Arahkan ke titik suplai (batu, gundukan, atau puing)' };
+      const tm = { x: nd.x, z: nd.z, lv: 0, rot: S.rot, ok: false, why: '', node: nd };
+      tm.why = clash(s, tm.x, tm.z, tm.rot, 0) ? 'Terhalang objek lain' : !afford(s) ? lackOf(s.cost, inv) : ''; tm.ok = !tm.why; return tm;
+    }
+    const ar = s.line ? autoRot(a) : S.rot, [x, z] = snap(s, a.x, a.z, ar), t = { x, z, lv: S.lv, rot: ar, ok: false, why: '', auto: !!s.line };
+    if (outside(x, z)) t.why = 'Di luar lahan bangun';
+    else if (clash(s, x, z, S.rot, S.lv)) t.why = 'Posisi sudah terisi';
+    else if (!S.carry && !afford(s)) t.why = lackOf(s.cost, inv);
+    else t.ok = true;
+    return t;
+  }
+  function find() {
+    rc.setFromCamera(S.ndc, camera);
+    const h = rc.intersectObjects(root.children, true).find((x) => !x.object.userData.glass);
+    let o = h && h.object;
+    while (o && !o.userData.item) o = o.parent;
+    return o && o.userData.item;
+  }
+
+  // Aksi (setiap aksi mendaftarkan undo)
+  function drawLine(s) { // kabel/pipa: tap titik awal, tap titik akhir, jalur terpasang otomatis (lanjut dari titik akhir)
+    const a = aim();
+    if (!a) return say('Arahkan ke tanah');
+    const REL = { cable: ['solar', 'reactor', 'ogen', 'wgen', 'green', 'med', 'bench'], opipe: ['ogen'], wpipe: ['wgen', 'tank', 'green'] }[s.id] || [];
+    let e = [Math.round(a.x / 2) * 2, Math.round(a.z / 2) * 2], bd = 2.6;
+    items.forEach((o) => { const d = Math.hypot(o.x - a.x, o.z - a.z); if (REL.includes(o.type) && d < bd) { bd = d; e = [Math.round(o.x / 2) * 2, Math.round(o.z / 2) * 2]; } }); // ujung jalur menempel ke alat terdekat
+    if (!S.anchor) { S.anchor = e; return say('Titik awal dipasang, bidik titik akhir lalu Tempatkan'); }
+    const [x0, z0] = S.anchor, segs = [];
+    for (let x = x0; x !== e[0]; x += Math.sign(e[0] - x) * 2) segs.push([x + Math.sign(e[0] - x), z0, 0]);
+    for (let z = z0; z !== e[1]; z += Math.sign(e[1] - z) * 2) segs.push([e[0], z + Math.sign(e[1] - z), 1]);
+    if (!segs.length) { S.anchor = null; return say('Titik awal dibatalkan'); }
+    const made = [];
+    segs.forEach(([x, z, r]) => { if (!clash(s, x, z, r, S.lv)) made.push(create(s, x, z, S.lv, r, PALETTE[S.col])); });
+    undoStack.push(() => made.forEach((it) => detach(it)));
+    S.anchor = e; say(`${made.length} segmen ${s.n} dipasang`); render();
+  }
+  function place() {
+    const c = S.carry, s = c ? c.it.spec : CAT[S.sel];
+    if (s.line && !c) return drawLine(s);
+    if (s.id === 'rover' && !c) { // rover bukan komponen: dirakit/dipindah lewat hook (biaya dipotong di sana)
+      const tr = target(s);
+      if (!tr.ok && !/kurang/i.test(tr.why)) return say(tr.why);
+      return hooks.rover && hooks.rover(tr.x, tr.z, tr.rot);
+    }
+    const t = target(s);
+    if (!t.ok) return say(t.why);
+    if (c) {
+      const it = c.it, from = c.from;
+      Object.assign(it, { x: t.x, z: t.z, lv: t.lv, rot: t.rot }); attach(it); S.carry = null;
+      undoStack.push(() => { detach(it); Object.assign(it, from); attach(it); });
+    } else {
+      pay(s, 1);
+      SFX('build'); const it = create(s, t.x, t.z, t.lv, t.rot, PALETTE[S.col]);
+      if (s.id === 'miner' && hooks.bind) hooks.bind(it, t.node);
+      undoStack.push(() => { detach(it); pay(s, -1); if (s.id === 'miner' && hooks.unbind) hooks.unbind(it); });
+    }
+    render();
+  }
+  function rotateItem(it) {
+    if (!it) return say('Arahkan ke komponen');
+    const from = { x: it.x, z: it.z, rot: it.rot }, r = (it.rot + 1) % 4, [x, z] = snap(it.spec, it.x, it.z, r);
+    detach(it);
+    const bad = !inArea(it.spec, x, z, r) || clash(it.spec, x, z, r, it.lv);
+    Object.assign(it, bad ? from : { x, z, rot: r }); attach(it);
+    if (bad) return say('Tidak bisa diputar di sini');
+    undoStack.push(() => { detach(it); Object.assign(it, from); attach(it); });
+  }
+  function act() {
+    const m = S.mode;
+    if (S.carry) return place();
+    if (m === 'build') return place();
+    if (m === 'bp') return;
+    const it = find();
+    if (!it) return say('Arahkan ke komponen');
+    glow(it, false); hl = null;
+    if (m === 'delete') {
+      detach(it); pay(it.spec, -1); say('Dihapus, material dikembalikan');
+      undoStack.push(() => { if (!afford(it.spec)) return say(lackOf(it.spec.cost, inv)); pay(it.spec, 1); attach(it); });
+    } else if (m === 'rotate') rotateItem(it);
+    else if (m === 'color') { const old = it.color; tint(it, PALETTE[S.col]); undoStack.push(() => tint(it, old)); }
+    else if (m === 'move') { S.carry = { it, from: { x: it.x, z: it.z, lv: it.lv, rot: it.rot } }; S.rot = it.rot; S.lv = it.lv; detach(it); }
+    render();
+  }
+  function rot() {
+    if (S.mode === 'build' || S.carry) S.rot = (S.rot + 1) % 4;
+    else rotateItem(find());
+  }
+  function cancel() { S.anchor = null; if (S.carry) { attach(S.carry.it); S.carry = null; render(); } }
+  function undo() { const u = undoStack.pop(); if (!u) return say('Tidak ada yang bisa di-undo'); u(); render(); }
+  const lvl = (d) => { S.lv = (S.lv + d + 3) % 3; render(); };
+  function setMode(m) { if (S.carry && m !== 'move') cancel(); S.mode = m; render(); }
+
+  // Blueprint: rancangan disimpan di localStorage (3 slot); Phase 5 memindahkannya ke cloud
+  const serialize = () => items.map((i) => ({ id: i.id, type: i.type, x: i.x, z: i.z, lv: i.lv, rot: i.rot, scale: i.scale, color: i.color, cost: i.cost, store: i.store }));
+  function bpSave() {
+    bps[S.bp] = serialize();
+    try { localStorage.setItem('mc_bp' + S.bp, JSON.stringify(bps[S.bp])); } catch (e) {}
+    say(`Blueprint ${S.bp} disimpan (${items.length} komponen)`);
+  }
+  function bpLoad() {
+    const list = bps[S.bp];
+    if (!list) return say('Slot kosong');
+    const made = []; let skip = 0;
+    for (const b of list) {
+      const s = CAT.find((c) => c.id === b.type);
+      if (!s || !afford(s) || !inArea(s, b.x, b.z, b.rot) || clash(s, b.x, b.z, b.rot, b.lv)) { skip++; continue; }
+      pay(s, 1); made.push(create(s, b.x, b.z, b.lv, b.rot, b.color));
+    }
+    undoStack.push(() => made.forEach((it) => { detach(it); pay(it.spec, -1); }));
+    say(`${made.length} dipasang, ${skip} dilewati`); render();
+  }
+
+  // Panel
+  const btn = (label, cls, fn, sub, bg) => {
+    const b = document.createElement('button');
+    b.innerHTML = label + (sub ? `<small>${sub}</small>` : '');
+    b.className = cls || ''; b.onclick = fn;
+    if (bg !== undefined) b.style.background = bg === null ? 'linear-gradient(135deg,#999 50%,#444 50%)' : '#' + bg.toString(16).padStart(6, '0');
+    return b;
+  };
+  function render() {
+    const b = S.mode === 'build';
+    $('modes').replaceChildren(...MODES.map(([m, n]) => btn(n, S.mode === m ? 'on' : '', () => setMode(m))));
+    $('cats').hidden = $('comps').hidden = !b;
+    $('cats').replaceChildren(...GROUPS.map((g) => btn(g, S.g === g ? 'on' : '', () => { S.g = g; S.sel = CAT.findIndex((c) => c.g === g); render(); })));
+    $('comps').replaceChildren(...(CAT.map((c, i) => c.g === S.g && btn(c.n, (S.sel === i ? 'on' : '') + (afford(c) ? '' : ' no'), () => { S.sel = i; render(); }, costTxt(c))).filter(Boolean)));
+    $('cols').hidden = !(b || S.mode === 'color');
+    $('cols').replaceChildren(...PALETTE.map((c, i) => btn('', 'sw' + (S.col === i ? ' on' : ''), () => { S.col = i; render(); }, '', c)));
+    $('bpRow').hidden = S.mode !== 'bp';
+    $('bpRow').replaceChildren(btn(`Simpan slot ${S.bp}`, '', bpSave), btn(`Muat slot ${S.bp}`, '', bpLoad), btn('Ganti slot', '', () => { S.bp = S.bp % 3 + 1; render(); }));
+    $('bPlace').textContent = S.carry ? 'Tempatkan' : b ? 'Tempatkan' : 'Terapkan';
+    $('bLv').textContent = `Level ${S.lv}`;
+    $('modes').hidden = S.min;
+    if (S.min) $('cats').hidden = $('comps').hidden = $('cols').hidden = $('bpRow').hidden = true;
+    $('bMin').textContent = S.min ? 'Buka panel' : 'Ciutkan';
+    $('build').hidden = !S.on;
+    hintTxt = ''; $('hint').textContent = MODES.find((m) => m[0] === S.mode)[2];
+    { const cs = CAT[S.sel]; $('desc').textContent = S.mode === 'build' ? DESC[cs.id] || DESC[cs.shape && cs.shape[0]] || '' : ''; }
+    document.documentElement.style.setProperty('--bh', $('build').offsetHeight + 'px');
+  }
+  $('bPlace').onclick = act; $('bRot').onclick = rot; $('bLv').onclick = () => lvl(1); $('bUndo').onclick = undo; $('bCancel').onclick = cancel;
+  $('bMin').onclick = () => { S.min = !S.min; render(); };
+  $('bRefill').onclick = () => { inv = START.slice(); hud(); render(); say('Material diisi ulang (mode uji)'); };
+  addEventListener('keydown', (e) => {
+    if (!S.on || ui.paused || e.repeat) return;
+    const k = e.code, d = k.startsWith('Digit') ? +k[5] : 0;
+    if (d >= 1 && d <= MODES.length) setMode(MODES[d - 1][0]);
+    else if (k === 'KeyF') act(); else if (k === 'KeyR') rot(); else if (k === 'KeyZ') undo();
+    else if (k === 'KeyT') lvl(1); else if (k === 'KeyG') lvl(-1);
+  });
+
+  const glow = (it, on) => it && it.obj.traverse((o) => { if (o.isMesh && o.material.emissive) o.material.emissive.setHex(on ? 0x1d5c55 : 0); });
+  const SELECT = ['move', 'rotate', 'delete', 'color'];
+  function update(dt, i) { // dipanggil tiap frame
+    world.flush();
+    if (!(S.mode === 'build' && CAT[S.sel] && CAT[S.sel].line)) S.anchor = null;
+    anchorM.visible = S.on && !ui.paused && !!S.anchor;
+    if (S.anchor) anchorM.position.set(S.anchor[0], S.lv * LV + .4, S.anchor[1]);
+    const live = S.on && !ui.paused;
+    if (live) {
+      fly(dt, i);
+      if (i.ptr) S.ndc.set(i.ptr[0] / innerWidth * 2 - 1, 1 - i.ptr[1] / innerHeight * 2);
+      if (i.tap) { // PC: klik langsung memasang; HP: ketuk membidik, lalu tombol Tempatkan
+        S.ndc.set(i.tap.x / innerWidth * 2 - 1, 1 - i.tap.y / innerHeight * 2);
+        if (i.tap.mouse) act();
+      }
+    }
+    const ghostOn = live && (S.mode === 'build' || S.carry);
+    portG.visible = live && ((S.mode === 'build' && S.g === 'Modul') || !!(S.carry && S.carry.it.spec.kind === 'mod'));
+    if (portG.visible && portsDirty) refreshPorts();
+    const want = live && !ghostOn && SELECT.includes(S.mode) ? find() : null;
+    if (want !== hl) { glow(hl, false); glow(want, true); hl = want; }
+    if (ghost) ghost.visible = false;
+    if (!ghostOn) return;
+    const s = S.carry ? S.carry.it.spec : CAT[S.sel];
+    if (gSpec !== s) { if (ghost) scene.remove(ghost); ghost = makeObj(s, null, ghostMat); scene.add(ghost); gSpec = s; }
+    const t = target(s);
+    if (t.joined || t.auto) S.rot = t.rot;
+    setT(ghost, t.x, t.z, t.lv, t.rot); ghost.visible = true;
+    grid.position.x = Math.round(t.x / 2) * 2; grid.position.z = Math.round(t.z / 2) * 2; // grid mengikuti bidikan
+    ghostMat.color.setHex(t.ok ? 0x5ee6d0 : 0xff5a4a);
+    const h = !t.ok ? t.why : s.line ? (S.anchor ? 'Bidik titik akhir lalu Tempatkan: jalur ditarik otomatis' : 'Bidik titik awal lalu Tempatkan') + ', gratis' : t.joined ? `${s.n}: tersambung. ${needTxt(s)}` : s.kind === 'mod' ? `${s.n}: dekatkan ke cincin hijau untuk menyambung. ${needTxt(s)}` : `${s.n}: ${needTxt(s)}`;
+    if (h !== hintTxt) { hintTxt = h; $('hint').textContent = h; }
+  }
+  function toggle() {
+    S.on = !S.on; document.body.classList.toggle('building', S.on); grid.visible = S.on;
+    items.forEach((it) => { const d = it.obj.userData.decal; if (d) d.visible = S.on; });
+    $('bBuild').textContent = S.on ? 'Tutup' : 'Bangun'; $('bJump').textContent = S.on ? 'Naik' : 'Loncat'; $('bAct').textContent = S.on ? 'Turun' : 'Aksi';
+    if (S.on) {
+      const p = player.obj.position; F.yaw = player.yaw; F.pitch = .75; F.pos.set(p.x + Math.sin(F.yaw) * 9, p.y + 8, p.z + Math.cos(F.yaw) * 9);
+      say(document.body.classList.contains('touch') ? 'Kamera bebas: joystick gerak, Naik/Turun, ketuk tanah untuk membidik' : 'Kamera bebas: WASD gerak, Space naik, C turun, klik untuk memasang');
+    }
+    if (!S.on) { cancel(); glow(hl, false); hl = null; }
+    render();
+  }
+  hud(); render();
+  return { toggle, update, serialize, flying: () => S.on, focus, items, inv: () => inv, hooks, restore: (list, inv2) => {
+    items.slice().forEach(detach);
+    list.forEach((b) => { const s = CAT.find((c) => c.id === b.type); if (!s) return; const it = create(s, b.x, b.z, b.lv, b.rot, b.color); if (b.store) it.store = b.store; });
+    if (inv2) inv = inv2.slice();
+    portsDirty = true; hud(); render();
+  }, grant: (a) => { a.forEach((v, i) => { inv[i] += v; }); hud(); render(); } };
+}
+
+/* ===== MANAJEMEN KOLONI (Phase 4): kebutuhan dasar, produksi fasilitas, level ===== */
+const NEEDS = [['o', 'O2 baju', '5ee6d0'], ['w', 'Air', '4a90c2'], ['e', 'Energi', 'd9c14a'], ['f', 'Kenyang', '6fcf6f']];
+const USE = { o: .5, w: .2, f: .15 }, REFILL = 6, LOADM = .04; // REFILL: isi O2 baju/detik di dalam modul beroksigen; LOADM: listrik per m2 bangunan // konsumsi koloni per detik
+// Fasilitas (per detik): isi = produksi, ue = pakai energi, uw = pakai air. Hanya komponen yang dipasang yang bekerja.
+const FAC = { miner: { ue: 2 }, solar: { e: 2 }, reactor: { e: 10 }, ogen: { o: 1.5, ue: 1 }, wgen: { w: 1, ue: 1 }, green: { f: .8, uw: .3, ue: .5 } };
+const REQ = [['Kubah / modul hunian', (c) => c.dome], ['Generator O2', (c) => c.ogen], ['Panel surya', (c) => c.solar], ['Kontainer', (c) => c.crate],
+  ['Alat greenhouse', (c) => c.green], ['Ruang medis', (c) => c.med], ['Workbench', (c) => c.bench], ['Tangki air', (c) => c.tank], ['Generator air', (c) => c.wgen]];
+const LEVELS = ['', 'basis bertahan hidup', 'permukiman kecil'];
+
+function initColony(build, ui) {
+  const st = { o: 100, w: 100, e: 50, f: 100 }, rate = { o: 0, w: 0, e: 0, f: 0 }, rows = {}, warned = {};
+  let level = 1, cap = 100, t1 = 0, t2 = 0, c = {};
+  NEEDS.forEach(([k, n, col]) => {
+    const d = document.createElement('div');
+    d.className = 'nd'; d.innerHTML = `<span>${n}</span><b></b><i style="background:#${col}"></i>`;
+    $('dNeeds').appendChild(d); rows[k] = d;
+  });
+  $('dash').onclick = () => { $('dList').hidden = !$('dList').hidden; list(); };
+
+  function count() {
+    c = {};
+    for (const it of build.items) {
+      const k = it.type.startsWith('dome') ? 'dome' : it.type; c[k] = (c[k] || 0) + 1;
+      if (!it.store && (it.type === 'tank' || it.type === 'crate' || it.type === 'green')) it.store = it.type === 'crate' ? { m: [0, 0, 0, 0, 0] } : it.type === 'tank' ? { w: 25 } : { f: 0 }; // isi awal
+    }
+    cap = 100;
+  }
+  let sealed = false, hasAir = false;
+  const CAPS = { tank: ['w', 100], green: ['f', 20] };
+  function link() { // Generator air -> Tangki: otomatis bila dekat (maks 3,5 m) atau lewat Pipa air
+    const items = build.items, pipes = items.filter((i) => i.type === 'wpipe'), tanks = items.filter((s) => s.type === 'tank');
+    const E = (it) => (it.rot % 2 ? [[it.x, it.z - 1], [it.x, it.z + 1]] : [[it.x - 1, it.z], [it.x + 1, it.z]]);
+    const touch = (pp, o) => E(pp).some((e) => Math.hypot(e[0] - o.x, e[1] - o.z) < 2.4), near = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) < .4;
+    items.forEach((p) => {
+      if (p.type !== 'wgen') return;
+      p.link = tanks.filter((s) => Math.hypot(s.x - p.x, s.z - p.z) <= 3.5).sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z))[0] || null;
+      if (p.link) return;
+      const q = pipes.filter((pp) => touch(pp, p)), seen = new Set(q);
+      while (q.length && !p.link) {
+        const pp = q.shift();
+        p.link = tanks.find((s) => touch(pp, s)) || null;
+        pipes.forEach((d) => { if (!seen.has(d) && E(pp).some((a) => E(d).some((b) => near(a, b)))) { seen.add(d); q.push(d); } });
+      }
+    });
+  }
+  function step(dt) {
+    let gen = 0, need = 0;
+    for (const k in FAC) { const n = c[k] || 0; gen += n * (FAC[k].e || 0) * (1 + .5 * (UPG[k] || 0)); need += n * (FAC[k].ue || 0); }
+    for (const it of build.items) if (it.spec.kind === 'mod' && it.powered !== false) { // makin besar bangunan, makin boros listrik
+      if (it._a === undefined) it._a = shapesOf(it.spec, it.x, it.z, it.rot).reduce((s, q) => s + (q.c ? Math.PI * q.r * q.r : 4 * q.hx * q.hz), 0);
+      need += it._a * LOADM;
+    }
+    const eff = gen >= need || st.e > 0 ? 1 : gen / need; // baterai habis: fasilitas melambat
+    const nx = { o: sealed ? (hasAir ? REFILL * (1 + .5 * (UPG.ogen || 0)) * eff : 0) : -USE.o, w: 0, f: -USE.f, e: gen - need * eff };
+    const tanks = build.items.filter((i) => i.type === 'tank');
+    let useW = USE.w;
+    for (const it of build.items) {
+      const f = FAC[it.type]; if (!f) continue;
+      const run = eff * (f.uw && st.w <= 0 ? 0 : 1) * (1 + .5 * (UPG[it.type] || 0));
+      if (f.uw) useW += f.uw * run;
+      if (f.w || f.f) { // produsen mengisi penyimpanan yang tersambung lewat Supply transporter
+        const k = f.w ? 'w' : 'f', d = f.f ? it : it.link;
+        if (d && d.store) { const add = Math.max(0, Math.min(CAPS[d.type][1] - (d.store[k] || 0), f[k] * run * dt)); d.store[k] = (d.store[k] || 0) + add; if (k === 'w') nx.w += add / dt; }
+      }
+    }
+    let rem = useW * dt;
+    for (const tk of tanks) { const x = Math.min(tk.store.w || 0, rem); tk.store.w = (tk.store.w || 0) - x; rem -= x; }
+    nx.w -= useW;
+    st.w = tanks.length ? tanks.reduce((s, tk) => s + (tk.store.w || 0), 0) : Math.max(0, st.w - rem); // tanpa tangki: cadangan awal
+    for (const k of ['o', 'f', 'e']) st[k] = Math.min(100, Math.max(0, st[k] + nx[k] * dt));
+    for (const k in rate) rate[k] = nx[k];
+  }
+  const stable = () => st.o > 0 && st.w > 0 && st.f > 0 && st.e > 0;
+  function list() {
+    if ($('dList').hidden) return;
+    $('dList').innerHTML = level >= 2
+      ? '<b>Level 2 tercapai</b><br>Level 3 (koloni industri) hadir di fase berikutnya'
+      : '<b>Syarat Level 2</b><br>' + REQ.map(([n, f]) => `${f(c) ? '✓' : '○'} ${n}`).join('<br>') + `<br>${stable() ? '✓' : '○'} Semua kebutuhan dasar tersedia`;
+  }
+  function check() {
+    if (level === 1 && REQ.every(([, f]) => f(c)) && stable()) {
+      level = 2; $('lvTxt').textContent = `Level 2, ${LEVELS[2]}`;
+      build.grant([60, 50, 15, 15, 10]);
+      SFX('up'); ui.toast('Level 2 tercapai! Bonus material diterima');
+    }
+    list();
+  }
+  function show() {
+    for (const [k, n] of NEEDS) {
+      const r = rows[k], cp = k === 'w' ? Math.max(100, 100 * (c.tank || 0)) : 100, low = st[k] < cp * .15;
+      r.children[1].textContent = `${Math.round(st[k])} ${rate[k] >= 0 ? '+' : ''}${rate[k].toFixed(1)}`;
+      r.children[2].style.width = Math.min(100, st[k] / cp * 100) + '%';
+      r.classList.toggle('low', low);
+      if (low && !warned[k]) { warned[k] = 1; ui.toast(`${n} menipis!`); } else if (st[k] > cp * .3) warned[k] = 0;
+    }
+  }
+  count(); show();
+  return { info: () => ({ st, rate, cap }), eat: (v) => { st.f = Math.min(100, st.f + v); },
+    state: () => ({ st: Object.assign({}, st), level }),
+    load: (s) => { Object.assign(st, s.st); level = s.level; $('lvTxt').textContent = `Level ${level}, ${LEVELS[level]}`; }, inside: (v, air) => { sealed = v; hasAir = !!air; }, update(dt) {
+    count(); step(dt);
+    if ((t1 += dt) > .25) { t1 = 0; show(); }
+    if ((t2 += dt) > 1) { t2 = 0; link(); check(); }
+  } };
+}
+
+/* ===== TAS, ALAT, INTERAKSI: tambang resource, pintu, fasilitas, workbench ===== */
+const UPG = {}; // level upgrade per fasilitas (maks 2, tiap level +50% produksi)
+const TOOLS = [['pick', 'Beliung', 'menambang batu'], ['axe', 'Kapak', 'memotong puing'], ['shovel', 'Sekop', 'menggali regolith']];
+const NODE = { // drop = [besi, regolith, kaca, polimer, elektronik] sebagai [min, maks]
+  rock: { tool: 'pick', act: 'Tambang', name: 'Batu', drop: [[3, 5], 0, [0, 1], 0, 0] },
+  dune: { tool: 'shovel', act: 'Gali', name: 'Gundukan regolith', drop: [0, [4, 6], 0, 0, 0] },
+  junk: { tool: 'axe', act: 'Potong', name: 'Puing ekspedisi', drop: [0, 0, 0, [2, 3], [0, 2]] } };
+const UPS = [['solar', 'Panel surya', [6, 0, 4, 2, 4]], ['reactor', 'Reaktor mini', [12, 0, 4, 6, 8]], ['ogen', 'Generator O2', [8, 0, 0, 3, 4]], ['wgen', 'Generator air', [6, 0, 2, 3, 2]], ['green', 'Alat greenhouse', [6, 0, 4, 3, 3]]];
+const FACNAME = { miner: ['Mesin tambang', 'm', 'bahan'], ogen: ['Generator O2', 'o', 'oksigen'], tank: ['Tangki air', 'w', 'air'], wgen: ['Generator air', 'w', 'air'], green: ['Alat greenhouse', 'f', 'makanan'], solar: ['Panel surya', 'e', 'energi'], reactor: ['Reaktor mini', 'e', 'energi'], med: ['Ruang medis'], crate: ['Kontainer'], bench: ['Workbench'] };
+
+function initPlay(scene, player, build, colony, ui) {
+  const nodes = [], doors = new Map(), doorG = new THREE.Group(), nodeG = new THREE.Group();
+  let sig = '', acc = 0, held = null;
+  scene.add(doorG, nodeG);
+  const R = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+  const mat = (c, o) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: .9, flatShading: true }, o));
+
+  // Resource di peta: batu (beliung), gundukan (sekop), puing (kapak). Tumbuh lagi setelah 60 detik.
+  function mk(type) {
+    const g = new THREE.Group(), add = (geo, m, x, y, z, s) => { const me = new THREE.Mesh(geo, m); me.position.set(x, y, z); if (s) me.scale.set(s[0], s[1], s[2]); me.castShadow = true; g.add(me); return me; };
+    if (type === 'rock') { add(new THREE.IcosahedronGeometry(1, 0), mat(0x5a3a34), 0, .5, 0, [1.1, .8, .9]); add(new THREE.ConeGeometry(.2, .6, 5), mat(0x8fdcff, { emissive: 0x2a5566 }), .5, 1, .2); }
+    else if (type === 'dune') add(new THREE.SphereGeometry(1.4, 10, 6, 0, 2 * Math.PI, 0, Math.PI / 2), mat(0xc58a52), 0, 0, 0, [1, .45, 1]);
+    else { add(new THREE.BoxGeometry(1.2, .5, .8), mat(0x8a949c, { metalness: .5 }), 0, .3, 0).rotation.y = .5; add(new THREE.BoxGeometry(.6, .4, .6), mat(0xd9702f), .4, .7, .1); }
+    return g;
+  }
+  // Resource muncul per chunk di seluruh dunia (deterministik), dimuat dan dibuang mengikuti pemain
+  const loaded = new Map(), CS2 = 48;
+  function spawnChunk(cx, cz) {
+    let s = ((cx * 73856093) ^ (cz * 19349663)) >>> 0 || 1;
+    const rr = () => (s = (s * 16807) % 2147483647) / 2147483647, list = [];
+    for (let i = 0; i < 2; i++) {
+      const x = (cx + rr() - .5) * CS2, z = (cz + rr() - .5) * CS2, type = ['rock', 'dune', 'junk'][(rr() * 3) | 0];
+      if ((Math.abs(x) < 24 && Math.abs(z) < 24) || build.items.some((m) => m.type === 'miner' && Math.hypot(m.x - x, m.z - z) < 2.5)) continue; // lahan koloni bersih, titik bermesin tidak diduplikasi
+      const o = mk(type); o.position.set(x, heightAt(x, z), z); o.rotation.y = rr() * 6; nodeG.add(o);
+      const n = { type, o, x, z, hp: 3, t: 0 }; nodes.push(n); list.push(n);
+    }
+    loaded.set(cx + ',' + cz, list);
+  }
+  function streamNodes() {
+    const p = player.obj.position, cx0 = Math.round(p.x / CS2), cz0 = Math.round(p.z / CS2);
+    for (const [k, l] of loaded) { const [cx, cz] = k.split(',').map(Number); if (Math.abs(cx - cx0) > 4 || Math.abs(cz - cz0) > 4) { l.forEach((n) => { nodeG.remove(n.o); const ix = nodes.indexOf(n); if (ix >= 0) nodes.splice(ix, 1); }); loaded.delete(k); } }
+    for (let a = -3; a <= 3; a++) for (let b = -3; b <= 3; b++) if (!loaded.has((cx0 + a) + ',' + (cz0 + b))) spawnChunk(cx0 + a, cz0 + b);
+  }
+
+  // Pintu bunker: bingkai tebal, daun baja berengsel, roda kunci berputar dulu lalu daun mengayun ke dalam
+  const PI = Math.PI, ease = (x) => x * x * (3 - 2 * x), cl = THREE.MathUtils.clamp;
+  const dm = mat(0x7d8892, { metalness: .7, roughness: .45, side: THREE.DoubleSide }), dk = mat(0x2b3238, { metalness: .6, side: THREE.DoubleSide });
+  const slabGeo = new THREE.CylinderGeometry(RT - .04, RT - .04, .36, 28, 1, false, PI / 2, PI).rotateX(PI / 2), frameGeo = new THREE.TorusGeometry(RT, .16, 6, 24, PI);
+  const wheelGeo = new THREE.TorusGeometry(.34, .05, 6, 16), spokeGeo = new THREE.BoxGeometry(.68, .06, .06), lampGeo = new THREE.BoxGeometry(.16, .1, .06);
+  function makeDoor() {
+    const g = new THREE.Group(), add = (par, geo, m, x, y, z, s) => { const me = new THREE.Mesh(geo, m); me.position.set(x, y, z); if (s) me.scale.set(s[0], s[1], s[2]); me.castShadow = true; par.add(me); return me; };
+    add(g, frameGeo, dk, 0, 0, 0, [1, SY, 1]);
+    const hinge = new THREE.Group(); hinge.position.x = -RT + .06; g.add(hinge);
+    add(hinge, slabGeo, dm, RT - .06, 0, 0, [1, SY, 1]);
+    const wheel = new THREE.Group(); wheel.position.set(RT - .06, 1.35, .16); hinge.add(wheel);
+    add(wheel, wheelGeo, dk, 0, 0, 0); add(wheel, spokeGeo, dk, 0, 0, 0); add(wheel, spokeGeo, dk, 0, 0, 0).rotation.z = PI / 2;
+    const lampM = new THREE.MeshBasicMaterial({ color: 0xff4a3a }); add(g, lampGeo, lampM, 0, 2.2, .2);
+    g.userData = { hinge, wheel, lampM };
+    return g;
+  }
+  // Tabrakan: dinding modul = tepi gabungan footprint (lolos hanya di celah pintu terbuka), dinding grid dan perabot = kotak solid
+  let portList = [], shapes = [], rects = [], sig2 = '', airShapes = [];
+  const E = .4, ins = (s, x, z, e) => s.c ? Math.hypot(x - s.x, z - s.z) < s.r + e : Math.abs(x - s.x) < s.hx + e && Math.abs(z - s.z) < s.hz + e;
+  const gapOpen = (q) => !q.key || doorG.children.some((m) => m.userData.key === q.key && m.userData.t > .6);
+  function solid(x, z) {
+    if (rects.some((r) => Math.abs(x - r.x) < r.hx + .35 && Math.abs(z - r.z) < r.hz + .35)) return true;
+    if (shapes.some((s) => ins(s, x, z, E)) && !shapes.some((s) => ins(s, x, z, -E)))
+      return !portList.some((q) => Math.abs((x - q.x) * q.dx + (z - q.z) * q.dz) < .8 && Math.abs((x - q.x) * q.dz - (z - q.z) * q.dx) < 1.1 && gapOpen(q));
+    return false;
+  }
+  // Jaringan listrik: kabel yang tersambung ke panel surya (maks 1,5 m dari ujung kabel) diberi area hijau
+  const powerG = new THREE.Group(), pwMat = new THREE.MeshBasicMaterial({ color: 0x3dff7a, transparent: true, opacity: .4, depthWrite: false }), pwGeo = new THREE.BoxGeometry(2, .05, 1.3);
+  const cabG = new THREE.Group(); scene.add(powerG, cabG); let sig3 = '', wasIn = false, wasAir = false;
+  const ends = (it) => it.rot % 2 ? [[it.x, it.z - 1], [it.x, it.z + 1]] : [[it.x - 1, it.z], [it.x + 1, it.z]], pk = ([x, z]) => `${x}|${z}`;
+  function syncPower() { // sumber (panel surya) -> kabel -> modul -> modul tersambung (lorong, kubah). Semua yang tersambung teraliri.
+    const its = build.items.filter((o) => o.lv === 0), mods = its.filter((o) => o.spec.kind === 'mod'), cab = its.filter((o) => o.type === 'cable'), sol = its.filter((o) => o.type === 'solar' || o.type === 'reactor');
+    const sh = new Map(mods.map((m) => [m, shapesOf(m.spec, m.x, m.z, m.rot)])), ps = new Map(mods.map((m) => [m, portsOf(m.spec, m.x, m.z, m.rot)]));
+    const madj = new Map();
+    const near = (m, x, z, e) => sh.get(m).some((s) => ins(s, x, z, e)), adj = new Map(), nb = (o) => adj.get(o) || adj.set(o, []).get(o), link = (a, b) => { nb(a).push(b); nb(b).push(a); };
+    mods.forEach((a, k) => mods.slice(k + 1).forEach((b) => { if (ps.get(a).some((p) => ps.get(b).some((q) => Math.abs(p.x - q.x) < .3 && Math.abs(p.z - q.z) < .3 && p.dx === -q.dx && p.dz === -q.dz))) link(a, b), (madj.get(a) || madj.set(a, []).get(a)).push(b), (madj.get(b) || madj.set(b, []).get(b)).push(a); }));
+    cab.forEach((c, k) => {
+      cab.slice(k + 1).forEach((d) => { if (ends(c).some((e) => ends(d).some((f) => e[0] === f[0] && e[1] === f[1]))) link(c, d); });
+      mods.forEach((m) => { if (ends(c).some(([x, z]) => near(m, x, z, .6))) link(c, m); });
+    });
+    const live = new Set(), q = [], seed = (o) => { if (!live.has(o)) { live.add(o); q.push(o); } };
+    sol.forEach((s) => { cab.forEach((c) => { if (ends(c).some(([x, z]) => Math.hypot(s.x - x, s.z - z) <= 1.5)) seed(c); }); mods.forEach((m) => { if (near(m, s.x, s.z, 1)) seed(m); }); });
+    while (q.length) (adj.get(q.pop()) || []).forEach(seed);
+    build.items.forEach((o) => { o.powered = o.type === 'solar' || o.type === 'reactor' || live.has(o) || mods.some((m) => live.has(m) && near(m, o.x, o.z, 1.5)) || cab.some((c) => live.has(c) && ends(c).some(([x, z]) => Math.hypot(x - o.x, z - o.z) <= 2.4)) || sol.some((s) => Math.hypot(s.x - o.x, s.z - o.z) <= 4); });
+    // O2: modul tersambung dapat udara bila Generator O2 menyala ada di dalam/dekat salah satunya (maks 3 m) atau terhubung lewat pipa oksigen
+    const opp = its.filter((o) => o.type === 'opipe'), ogs = its.filter((o) => o.type === 'ogen' && o.powered), reach = new Set(), pts2 = new Set();
+    ogs.forEach((g) => opp.forEach((pp) => { if (ends(pp).some(([x, z]) => Math.hypot(x - g.x, z - g.z) <= 2.4)) { reach.add(pp); ends(pp).forEach((e) => pts2.add(pk(e))); } }));
+    for (let ch = true; ch;) { ch = false; opp.forEach((pp) => { if (!reach.has(pp) && ends(pp).some((e) => pts2.has(pk(e)))) { reach.add(pp); ends(pp).forEach((e) => pts2.add(pk(e))); ch = true; } }); }
+    const seen = new Set(); airShapes = [];
+    mods.forEach((m) => {
+      if (seen.has(m)) return;
+      const comp = [], qq = [m]; seen.add(m);
+      while (qq.length) { const x = qq.pop(); comp.push(x); (madj.get(x) || []).forEach((y) => { if (!seen.has(y)) { seen.add(y); qq.push(y); } }); }
+      const fed = ogs.some((g) => comp.some((x) => near(x, g.x, g.z, 3))) || [...reach].some((pp) => comp.some((x) => ends(pp).some(([ex, ez]) => near(x, ex, ez, 1))));
+      if (fed) comp.forEach((x) => airShapes.push(...sh.get(x)));
+    });
+    const sg = [...live].map((c) => c.id).join();
+    if (sg === sig3) return;
+    sig3 = sg; powerG.children.forEach((m) => { if (m.geometry !== pwGeo) m.geometry.dispose(); }); powerG.clear(); cabG.clear();
+    live.forEach((o) => {
+      if (o.spec.kind === 'mod') sh.get(o).forEach((s) => { // lantai modul yang teraliri diberi warna hijau
+        const m = new THREE.Mesh(s.c ? new THREE.CircleGeometry(s.r - .1, 28).rotateX(-PI / 2) : new THREE.PlaneGeometry(2 * s.hx - .2, 2 * s.hz - .2).rotateX(-PI / 2), pwMat);
+        m.position.set(s.x, .13, s.z); powerG.add(m);
+      });
+      else { const m = new THREE.Mesh(pwGeo, pwMat); m.position.set(o.x, .06, o.z); if (o.rot % 2) m.rotation.y = PI / 2; cabG.add(m); }
+    });
+  }
+  const stubG = new THREE.Group(), stubGeo = new THREE.CylinderGeometry(.07, .07, 1, 6), stubM = { opipe: mat(0xcfe8ff), wpipe: mat(0x4ad8e6) }; scene.add(stubG); let sig4 = '';
+  function syncStubs() { // sambungan visual dari ujung pipa ke alat terdekat supaya terlihat pas menempel
+    const its = build.items.filter((o) => o.lv === 0), REL = { opipe: ['ogen'], wpipe: ['wgen', 'tank', 'green'] }, H = { opipe: .3, wpipe: .5 }, list = [];
+    its.forEach((pp) => {
+      if (!REL[pp.type]) return;
+      const es = pp.rot % 2 ? [[pp.x, pp.z - 1], [pp.x, pp.z + 1]] : [[pp.x - 1, pp.z], [pp.x + 1, pp.z]];
+      its.forEach((o) => {
+        if (!REL[pp.type].includes(o.type)) return;
+        let b = null, bd = 2.4; es.forEach((e) => { const d = Math.hypot(e[0] - o.x, e[1] - o.z); if (d < bd) { bd = d; b = e; } });
+        if (b && bd > .3) list.push([pp.type, b, o]);
+      });
+    });
+    const sg = list.map(([t, b, o]) => `${t}${b}${o.id}`).join('|');
+    if (sg === sig4) return;
+    sig4 = sg; stubG.clear();
+    list.forEach(([t, b, o]) => {
+      const a = new THREE.Vector3(b[0], H[t], b[1]), z = new THREE.Vector3(o.x, H[t], o.z), d = z.clone().sub(a), m = new THREE.Mesh(stubGeo, stubM[t]);
+      m.position.copy(a).addScaledVector(d, .5); m.scale.y = d.length(); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+      stubG.add(m);
+    });
+  }
+  function syncDoors() {
+    const all = [];
+    build.items.forEach((it) => { if (it.spec.kind === 'mod') portsOf(it.spec, it.x, it.z, it.rot).forEach((p) => all.push(Object.assign(p, { lv: it.lv, dome: it.type.startsWith('dome') }))); });
+    const s2 = build.items.map((it) => `${it.id}|${it.x}|${it.z}|${it.rot}|${it.lv}`).join();
+    if (s2 !== sig2) {
+      sig2 = s2; shapes = []; rects = [];
+      build.items.forEach((it) => {
+        const s = it.spec, r = it.rot % 2;
+        if (it.lv !== 0) return;
+        if (s.kind === 'mod') shapes.push(...shapesOf(s, it.x, it.z, it.rot));
+        else if (s.kind === 'edge') { if (['wall', 'window', 'glass'].includes(it.type)) rects.push({ x: it.x, z: it.z, hx: r ? .1 : 1, hz: r ? 1 : .1 }); }
+        else if (s.kind === 'free') { const q = s.parts[0]; rects.push({ x: it.x, z: it.z, hx: (r ? q[2] : q[0]) / 2, hz: (r ? q[0] : q[2]) / 2 }); }
+        else if (it.type === 'airlock') rects.push({ x: it.x, z: it.z, hx: 1, hz: 1 });
+        else if (it.type === 'pillar') rects.push({ x: it.x, z: it.z, hx: .15, hz: .15 });
+      });
+    }
+    const sg = all.map((p) => `${p.x}|${p.z}|${p.lv}|${p.dx}${p.dz}${p.dome ? 'd' : ''}`).join();
+    if (sg === sig) return;
+    sig = sg; doorG.clear(); portList = [];
+    all.forEach((p) => {
+      const joined = all.some((q) => q !== p && q.lv === p.lv && Math.abs(q.x - p.x) < .3 && Math.abs(q.z - p.z) < .3 && q.dx === -p.dx && q.dz === -p.dz);
+      const k = `${p.x}|${p.z}|${p.lv}|${p.dx}|${p.dz}`, door = !(joined && !p.dome);
+      if (p.lv === 0) portList.push({ x: p.x, z: p.z, dx: p.dx, dz: p.dz, key: door ? k : null });
+      if (!door) return;
+      const m = makeDoor();
+      m.position.set(p.x, p.lv * LV + FL, p.z); m.rotation.y = Math.atan2(p.dx, p.dz);
+      Object.assign(m.userData, { key: k, x: p.x, z: p.z, t: doors.get(k) ? 1 : 0 });
+      doorG.add(m);
+    });
+  }
+
+  // Interaksi: yang terdekat antara resource, pintu, dan fasilitas
+  function nearest() {
+    const p = player.obj.position; let best = null, bd = 99;
+    const test = (d, o) => { if (d < bd) { bd = d; best = o; } };
+    nodes.forEach((n) => { if (n.hp > 0) test(Math.hypot(n.x - p.x, n.z - p.z) - 1, { k: 'node', n, label: NODE[n.type].act }); });
+    if (rover && !driving) test(Math.hypot(rover.x - p.x, rover.z - p.z) - 1.8, { k: 'rover', label: 'Naik rover' });
+    doorG.children.forEach((m) => test(Math.hypot(m.userData.x - p.x, m.userData.z - p.z) - .5, { k: 'door', m, label: doors.get(m.userData.key) ? 'Tutup' : 'Buka' }));
+    build.items.forEach((it) => { if (FACNAME[it.type]) test(Math.hypot(it.x - p.x, it.z - p.z) - 1, { k: 'fac', it, label: it.type === 'miner' ? 'Ambil hasil' : it.type === 'tank' ? 'Minum' : it.type === 'green' ? 'Panen' : it.type === 'crate' ? 'Simpan/Ambil' : 'Pakai' }); });
+    return bd < 2.2 ? best : null;
+  }
+  function hit(n) {
+    const d = NODE[n.type], tl = TOOLS.find((x) => x[0] === d.tool);
+    SFX(n.hp > 1 ? 'hit' : 'break'); n.hp--; n.o.scale.setScalar(.9 + n.hp * .03);
+    if (n.hp > 0) return ui.toast(`${tl[1]}: ${d.name} (${n.hp} lagi)`);
+    const got = d.drop.map((r) => (r ? R(r[0], r[1]) : 0));
+    build.grant(got); n.o.visible = false; n.t = 150 + Math.random() * 90;
+    ui.toast('+ ' + got.map((v, i) => (v ? `${v} ${RES[i]}` : '')).filter(Boolean).join(', '));
+  }
+  // Alat di tangan + animasi menambang + serpihan
+  const sw = { t: 0, n: null, done: true }, chips = [], chipG = new THREE.BoxGeometry(.1, .1, .1), chipM = mat(0xc9a27a);
+  const wood = mat(0x8a6b4a), steel = mat(0xaab6c2, { metalness: .6 }), holder = new THREE.Group();
+  holder.position.set(0, -.6, .08); holder.rotation.x = 1.3; player.arms[1].add(holder);
+  function toolMesh(k) {
+    const g = new THREE.Group(), add = (geo, m, x, y, z) => { const me = new THREE.Mesh(geo, m); me.position.set(x, y, z); me.castShadow = true; g.add(me); };
+    add(new THREE.CylinderGeometry(.03, .03, 1.1, 6), wood, 0, .4, 0);
+    if (k === 'shovel') add(new THREE.BoxGeometry(.3, .38, .03), steel, 0, .98, 0);
+    else if (k === 'pick') add(new THREE.BoxGeometry(.8, .07, .07), steel, 0, .92, 0);
+    else add(new THREE.BoxGeometry(.28, .3, .05), steel, .13, .88, 0);
+    return g;
+  }
+  // Slot tangan (3): item dari ransel dipindah ke slot; pilih slot lewat HUD atau tombol 1-3
+  const SLOT_N = { pick: 'Beliung', axe: 'Kapak', shovel: 'Sekop', food: 'Makanan' }, hand = ['shovel', 'pick', 'axe'];
+  let act = -1;
+  const hb = document.createElement('div'); hb.id = 'hotbar'; $('hud').appendChild(hb);
+  function renderHud() { hb.innerHTML = hand.map((k, i) => `<button class="slot${act === i ? ' on' : ''}" data-i="${i}"><i>${i + 1}</i>${k ? SLOT_N[k] : ''}</button>`).join(''); }
+  function applyHeld() {
+    const k = act >= 0 ? hand[act] : null;
+    held = k && k !== 'food' ? k : null; holder.clear(); if (held) holder.add(toolMesh(held)); player.held = held; renderHud();
+  }
+  function pickSlot(i) {
+    if (driving) return;
+    act = act === i ? -1 : i; applyHeld();
+    const k = act >= 0 ? hand[act] : null;
+    ui.toast(act < 0 ? 'Tangan kosong' : k ? (k === 'food' ? 'Makanan di tangan: Aksi untuk makan' : `${SLOT_N[k]} dipegang`) : `Slot ${i + 1} kosong`);
+  }
+  function setSlot(i, k) { const j = hand.indexOf(k); if (j >= 0) hand[j] = null; hand[i] = k; applyHeld(); renderBag(); }
+  hb.onclick = (e) => { const b = e.target.closest('button'); if (b) pickSlot(+b.dataset.i); };
+  addEventListener('keydown', (e) => { if (!e.repeat && !ui.paused && !build.flying() && /^Digit[1-3]$/.test(e.code)) pickSlot(+e.code.slice(5) - 1); });
+  renderHud();
+  function swing(n) {
+    if (sw.t > 0) return;
+    const p = player.obj.position; player.obj.rotation.y = Math.atan2(n.x - p.x, n.z - p.z);
+    Object.assign(sw, { t: .6, n, done: false });
+  }
+  function burst(n) {
+    for (let i = 0; i < 7; i++) {
+      const m = new THREE.Mesh(chipG, chipM); m.position.set(n.x, heightAt(n.x, n.z) + .6, n.z);
+      m.userData = { v: new THREE.Vector3((Math.random() - .5) * 3, 2 + Math.random() * 2, (Math.random() - .5) * 3), l: .7 }; scene.add(m); chips.push(m);
+    }
+  }
+  function eat() { bag.food--; colony.eat(30); SFX('eat'); ui.toast(`Makan: kenyang +30 (sisa ${bag.food} makanan di tas)`); }
+  function use(it) {
+    const ty = it.type, sto = it.store || (it.store = {});
+    if (ty === 'bench') { $('wb').hidden = false; return renderWb(); }
+    if (ty === 'miner') { // ambil hasil tambang
+      const m = sto.m || (sto.m = [0, 0, 0, 0, 0]), got = m.map((v, i) => (v ? `${v} ${RES[i]}` : '')).filter(Boolean);
+      if (!got.length) return ui.toast(it.powered === false ? 'Mesin tambang belum teraliri listrik' : 'Mesin tambang masih bekerja, belum ada hasil');
+      build.grant(m.slice()); m.fill(0); SFX('pick'); return ui.toast('Diambil: ' + got.join(', '));
+    }
+    if (ty === 'crate') { // penyimpanan barang: Aksi mengambil semua isi; jika kosong, menyimpan semua bahan
+      const m = sto.m || (sto.m = [0, 0, 0, 0, 0]), have = build.inv();
+      if (m.some((v) => v > 0)) { build.grant(m.slice()); m.fill(0); SFX('pick'); return ui.toast('Semua bahan diambil dari kontainer'); }
+      if (have.some((v) => v > 0)) { for (let k = 0; k < 5; k++) m[k] += have[k]; build.grant(have.map((v) => -v)); SFX('pick'); return ui.toast('Semua bahan disimpan di kontainer. Aksi lagi untuk mengambil'); }
+      return ui.toast('Kontainer kosong');
+    }
+    if (ty === 'tank') { // tangki bisa dipakai langsung
+      const w = sto.w || 0;
+      if (w < 5) { SFX('err'); return ui.toast('Tangki hampir kosong'); }
+      sto.w = w - 5; colony.eat(10); SFX('eat'); return ui.toast(`Minum dari tangki: kenyang +10 (air tersisa ${Math.round(sto.w)}/100)`);
+    }
+    if (ty === 'green') { // makanan langsung dipanen dari greenhouse
+      const n = Math.floor(sto.f || 0);
+      if (n < 1) { if (bag.food > 0) return eat(); return ui.toast(`Greenhouse: tanaman tumbuh (${(sto.f || 0).toFixed(1)}/20). Perlu air dan listrik`); }
+      sto.f -= n; bag.food += n; SFX('pick'); return ui.toast(`+${n} makanan dipanen. Tekan Aksi lagi untuk makan`);
+    }
+    const f = FAC[ty], m = 1 + .5 * (UPG[ty] || 0), name = FACNAME[ty][0];
+    if (f && (f.w || f.f)) { const what = f.w ? 'Tangki' : 'Kontainer'; return ui.toast(`${name}: ${it.link ? (it.out === false ? 'penyimpanan penuh' : 'mengisi ' + what) : 'belum terhubung, dekatkan Tangki (maks 3,5 m) atau sambung Pipa air ke ' + what}`); }
+    ui.toast(f ? `${name}: +${(f[FACNAME[ty][1]] * m).toFixed(1)} ${FACNAME[ty][2]}/dtk` : `${name}: kondisi prima`);
+  }
+  function interact() {
+    if (build.flying()) return;
+    if (driving) return roverMine();
+    const t = nearest();
+    if (!t) { if (bag.food > 0) return eat(); return ui.toast('Tidak ada yang bisa dipakai di dekat sini'); }
+    if (t.k === 'rover') return board();
+    if (t.k === 'door') { const k = t.m.userData.key; doors.set(k, !doors.get(k)); SFX('door'); }
+    else if (t.k === 'node') {
+      const need = NODE[t.n.type].tool;
+      if (held !== need) return ui.toast(`Pegang ${TOOLS.find((x) => x[0] === need)[1]} dulu (Tas, lalu Equip)`);
+      swing(t.n);
+    } else use(t.it);
+  }
+
+  // ===== ROVER SURYA: kendaraan cepat, alat tambang lengkap, tanpa bahan bakar =====
+  const RCOST = [40, 20, 10, 20, 30];
+  let rover = null, driving = false, camOff = 0;
+  const rsw = { t: 0, n: null, done: true };
+  const rbody = mat(0xd8dde2, { metalness: .4, roughness: .5, flatShading: false }), rdark = mat(0x2b3238), rsolar = mat(0x1d3b6e, { metalness: .5, roughness: .3 }), racc = mat(0xe2873c);
+  function makeRover() {
+    const g = new THREE.Group(), B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+    const add = (geo, m, x, y, z, par = g) => { const me = new THREE.Mesh(geo, m); me.position.set(x, y, z); me.castShadow = true; par.add(me); return me; };
+    add(B(2, .55, 3.2), rbody, 0, .85, 0);
+    add(B(1.6, .6, 1.3), rbody, 0, 1.4, -.2);
+    add(B(1.4, .3, .05), rdark, 0, 1.45, .46);
+    add(B(2.4, .06, 2), rsolar, 0, 1.78, -.2); // panel surya di atap
+    add(B(.3, .3, .3), racc, 0, 1.1, 1.65);
+    const wheels = [];
+    [[-1.15, 1.05], [1.15, 1.05], [-1.15, -1.05], [1.15, -1.05]].forEach(([x, z]) => {
+      const w = new THREE.Group(); w.position.set(x, .5, z); g.add(w);
+      add(new THREE.CylinderGeometry(.5, .5, .4, 14).rotateZ(Math.PI / 2), rdark, 0, 0, 0, w);
+      add(B(.42, .12, .12), racc, 0, .45, 0, w); // penanda putaran roda
+      wheels.push(w);
+    });
+    const arm = new THREE.Group(); arm.position.set(0, .95, 1.5); arm.rotation.x = -.3; g.add(arm);
+    add(B(.16, .16, 1.5), rdark, 0, 0, .75, arm);
+    const hold = new THREE.Group(); hold.position.set(0, 0, 1.5); hold.rotation.x = 1.2; arm.add(hold);
+    g.rotation.order = 'YXZ'; g.userData = { wheels, arm, hold };
+    return g;
+  }
+  const blockedAt = (r, x, z) => { const s = Math.sin(r.hd), c = Math.cos(r.hd); for (const a of [-1.7, 0, 1.7]) for (const b of [-1.2, 0, 1.2]) if (solid(x + s * a + c * b, z + c * a - s * b)) return true; return false; };
+  function placeRover() {
+    const r = rover, f = [Math.sin(r.hd), Math.cos(r.hd)];
+    r.y = heightAt(r.x, r.z);
+    r.g.position.set(r.x, r.y, r.z); r.g.rotation.y = r.hd;
+    r.g.rotation.x = -Math.atan2(heightAt(r.x + f[0] * 1.7, r.z + f[1] * 1.7) - heightAt(r.x - f[0] * 1.7, r.z - f[1] * 1.7), 3.4);
+  }
+  function spawnRover() { // rover muncul / dipanggil ke depan pemain
+    const p = player.obj.position, a0 = player.obj.rotation.y;
+    let spot = null;
+    for (let k = 0; k < 8 && !spot; k++) { const a = a0 + k * Math.PI / 4, x = p.x + Math.sin(a) * 4.5, z = p.z + Math.cos(a) * 4.5; if (!blockedAt({ hd: a }, x, z)) spot = { x, z, hd: a0 }; }
+    spot = spot || { x: p.x + Math.sin(a0) * 4.5, z: p.z + Math.cos(a0) * 4.5, hd: a0 };
+    if (!rover) { rover = { g: makeRover(), v: 0, y: 0 }; scene.add(rover.g); }
+    Object.assign(rover, spot, { v: 0 }); placeRover();
+  }
+  function roverTarget() { // sumber daya terdekat yang terjangkau lengan rover
+    if (!rover) return null;
+    let best = null, bd = 4.8;
+    nodes.forEach((n) => { if (n.hp > 0) { const d = Math.hypot(n.x - rover.x, n.z - rover.z); if (d < bd) { bd = d; best = n; } } });
+    return best;
+  }
+  function roverMine() { // satu tombol Aksi: alat yang dibutuhkan dipasang otomatis
+    if (rsw.t > 0) return;
+    const n = roverTarget();
+    if (!n) { SFX('err'); return ui.toast('Dekati sumber daya (maks 4,8 m), lalu tekan Aksi'); }
+    if (Math.abs(rover.v) > 1.5) return ui.toast('Hentikan rover dulu');
+    const tk = NODE[n.type].tool, hold = rover.g.userData.hold;
+    rover.hd = Math.atan2(n.x - rover.x, n.z - rover.z); rover.v = 0;
+    hold.clear(); hold.add(toolMesh(tk));
+    ui.toast(`Rover memasang ${TOOLS.find((x) => x[0] === tk)[1]} otomatis`);
+    Object.assign(rsw, { t: .7, n, done: false });
+  }
+  // Mesin tambang: dipasang di titik suplai, menambang terus tanpa menghabiskan titiknya
+  build.hooks.nodeAt = (x, z, maxd) => { let b = null, bd = maxd; nodes.forEach((n) => { if (n.hp > 0) { const d = Math.hypot(n.x - x, n.z - z); if (d < bd) { bd = d; b = n; } } }); return b; };
+  function dropNode(n) { nodeG.remove(n.o); const i = nodes.indexOf(n); if (i >= 0) nodes.splice(i, 1); loaded.forEach((l) => { const k = l.indexOf(n); if (k >= 0) l.splice(k, 1); }); }
+  build.hooks.bind = (it, n) => { it.store = { m: [0, 0, 0, 0, 0], nt: n.type }; dropNode(n); };
+  build.hooks.unbind = (it) => { const nt = it.store && it.store.nt; if (!nt) return; const o = mk(nt); o.position.set(it.x, heightAt(it.x, it.z), it.z); nodeG.add(o); nodes.push({ type: nt, o, x: it.x, z: it.z, hp: 3, t: 0 }); };
+  function cleanNodes() { build.items.forEach((it) => { if (it.type === 'miner') nodes.filter((n) => Math.hypot(n.x - it.x, n.z - it.z) < 2.5).forEach(dropNode); }); }
+  const mineT = new WeakMap();
+  function runMiners(dt) { // tiap 10 detik, mesin yang teraliri listrik menambah hasil (maks 60 per mesin)
+    build.items.forEach((it) => {
+      if (it.type !== 'miner' || !it.store || !it.store.nt || it.powered === false) return;
+      const t = (mineT.get(it) || 0) + dt;
+      if (t < 10) return mineT.set(it, t);
+      mineT.set(it, 0);
+      const m = it.store.m || (it.store.m = [0, 0, 0, 0, 0]);
+      if (m.reduce((a, b) => a + b, 0) >= 60) return;
+      NODE[it.store.nt].drop.forEach((r, i) => { if (r) m[i] += Math.max(1, Math.round((r[0] + r[1]) / 6)); });
+    });
+  }
+  EXTRA.get = () => ({ hand: hand.slice(), act, rover: rover ? { x: rover.x, z: rover.z, hd: rover.hd } : null });
+  EXTRA.set = (s) => {
+    if (driving) { driving = false; player.obj.visible = true; $('bBuild').textContent = 'Bangun'; }
+    hand.splice(0, 3, ...(s && s.hand ? s.hand : ['shovel', 'pick', 'axe'])); act = s && s.act !== undefined ? s.act : -1; applyHeld();
+    if (s && s.rover) { if (!rover) { rover = { g: makeRover(), v: 0, y: 0 }; scene.add(rover.g); } Object.assign(rover, s.rover, { v: 0 }); placeRover(); }
+    else if (rover) { scene.remove(rover.g); rover = null; }
+  };
+  build.hooks.rover = (x, z, rot) => { // dari menu build: merakit (bayar sekali) atau memindahkan rover
+    if (driving) return ui.toast('Turun dari rover dulu');
+    if (!rover) {
+      const inv = build.inv();
+      if (!RCOST.every((v, i) => inv[i] >= v)) { SFX('err'); return ui.toast(lackOf(RCOST, inv)); }
+      build.grant(RCOST.map((v) => -v)); rover = { g: makeRover(), v: 0, y: 0 }; scene.add(rover.g); SFX('build'); ui.toast('Rover surya dirakit!');
+    } else ui.toast('Rover dipindahkan');
+    Object.assign(rover, { x, z, hd: rot * Math.PI / 2, v: 0 }); placeRover();
+  };
+  function board() {
+    if (!rover || driving) return;
+    driving = true; camOff = 0; player.obj.visible = false; $('bBuild').textContent = 'Turun'; SFX('door');
+    ui.toast('Naik rover: Aksi dekat sumber daya = tambang otomatis, tombol Turun = keluar');
+  }
+  function dismount() {
+    if (!driving) return;
+    const r = rover, c = Math.cos(r.hd), s = Math.sin(r.hd), spots = [[c * 2.4, -s * 2.4], [-c * 2.4, s * 2.4], [-s * 3, -c * 3], [s * 3, c * 3]];
+    const sp = spots.find(([dx, dz]) => !solid(r.x + dx, r.z + dz)) || spots[0];
+    driving = false; r.v = 0; player.obj.visible = true; player.vy = 0;
+    player.obj.position.set(r.x + sp[0], heightAt(r.x + sp[0], r.z + sp[1]), r.z + sp[1]);
+    $('bBuild').textContent = 'Bangun'; SFX('door');
+  }
+  function drive(dt, i) {
+    const r = rover, lock = rsw.t > 0, cam = player.cam;
+    camOff -= i.lx * .0035; if (!i.lx) camOff *= Math.max(0, 1 - dt * 1.2);
+    player.pitch = THREE.MathUtils.clamp(player.pitch + i.ly * .003, .08, 1.3);
+    const vmax = i.run ? 22 : 14, tgt = lock ? 0 : i.my * (i.my > 0 ? vmax : 5);
+    r.v += (tgt - r.v) * Math.min(1, dt * (tgt === 0 ? 2.5 : 1.6));
+    if (!lock && Math.abs(r.v) > .3) r.hd -= i.mx * 1.5 * dt * THREE.MathUtils.clamp(r.v / 5, -1, 1);
+    const ox = r.x, oz = r.z, wasB = blockedAt(r, ox, oz);
+    r.x += Math.sin(r.hd) * r.v * dt; r.z += Math.cos(r.hd) * r.v * dt;
+    if (!wasB && blockedAt(r, r.x, r.z)) { r.x = ox; r.z = oz; r.v *= -.25; }
+    placeRover();
+    r.g.userData.wheels.forEach((w) => { w.rotation.x += r.v * dt / .5; });
+    player.obj.position.set(r.x, r.y, r.z); player.obj.rotation.y = r.hd;
+    const cy = r.hd + Math.PI + camOff, cp = Math.cos(player.pitch), D = 10, ty = r.y + 1.8;
+    cam.position.set(r.x + Math.sin(cy) * cp * D, ty + Math.sin(player.pitch) * D, r.z + Math.cos(cy) * cp * D);
+    cam.position.y = Math.max(cam.position.y, heightAt(cam.position.x, cam.position.z) + .7);
+    cam.lookAt(r.x, ty, r.z); player.yaw = cy;
+  }
+
+  // Tas
+  function renderBag() {
+    const items = [...TOOLS, ['food', 'Makanan', `${bag.food} tersedia`]];
+    $('bagTools').innerHTML = '<p class="sub">Tangan (3 slot)</p>'
+      + hand.map((k, i) => `<div class="it${act === i ? ' on' : ''}"><div style="text-align:left"><b>Slot ${i + 1}</b><br><span>${k ? SLOT_N[k] : 'kosong'}</span></div>${k ? `<button data-c="${i}">Kosongkan</button>` : ''}</div>`).join('')
+      + '<p class="sub">Item: ketuk nomor slot untuk memindah ke tangan</p>'
+      + items.map(([k, n, d]) => `<div class="it"><div style="text-align:left"><b>${n}</b><br><span>${d}</span></div><div>${[0, 1, 2].map((i) => `<button data-k="${k}" data-s="${i}" class="${hand[i] === k ? 'on' : ''}">${i + 1}</button>`).join('')}</div></div>`).join('');
+  }
+  const rv = document.createElement('div'); rv.id = 'bagRover'; $('bagTools').after(rv);
+  function renderRv() {
+    const inv = build.inv(), ok = RCOST.every((v, i) => inv[i] >= v), cost = RCOST.map((v, i) => `${RES[i]} ${v}`).join(', ');
+    rv.innerHTML = '<p class="sub">Kendaraan</p>' + (rover
+      ? '<div class="it"><div style="text-align:left"><b>Rover surya</b><br><span>Sudah dirakit. Dekati lalu tekan Aksi untuk naik.</span></div><button data-r="call">Panggil</button></div>'
+      : `<div class="it"><div style="text-align:left"><b>Rover surya</b><br><span>Cepat, alat tambang lengkap, tenaga surya. Biaya: ${cost}</span></div><button data-r="make" class="${ok ? '' : 'no'}">Rakit</button></div>`);
+  }
+  rv.onclick = (e) => {
+    const a = e.target.dataset && e.target.dataset.r; if (!a) return;
+    if (driving) return ui.toast('Turun dari rover dulu');
+    if (a === 'make') {
+      const inv = build.inv();
+      if (!RCOST.every((v, i) => inv[i] >= v)) { SFX('err'); return ui.toast(lackOf(RCOST, inv)); }
+      build.grant(RCOST.map((v) => -v)); spawnRover(); SFX('build'); ui.toast('Rover surya selesai dirakit!');
+    } else { spawnRover(); ui.toast('Rover dipanggil ke dekatmu'); }
+    renderRv(); renderBag();
+  };
+  $('bagTools').onclick = (e) => {
+    const d = e.target.dataset; if (!d) return;
+    if (d.k !== undefined && d.s !== undefined) setSlot(+d.s, d.k);
+    else if (d.c !== undefined) { hand[+d.c] = null; if (act === +d.c) act = -1; applyHeld(); renderBag(); }
+  };
+  const toggleBag = () => { $('bag').hidden = !$('bag').hidden; if (!$('bag').hidden) { renderBag(); renderRv(); } };
+  $('bagbtn').onclick = $('bagX').onclick = toggleBag;
+  $('bag').onclick = (e) => { if (e.target === $('bag')) toggleBag(); }; // ketuk area gelap untuk menutup
+  addEventListener('keydown', (e) => { if (e.code === 'KeyI' && !e.repeat) toggleBag(); });
+
+  // Workbench: upgrade peralatan (+50% produksi per level, maks 2)
+  function renderWb() {
+    const inv = build.inv(), box = $('wbList');
+    box.innerHTML = '';
+    UPS.forEach(([k, n, cost]) => {
+      const lv = UPG[k] || 0, c = cost.map((v) => v * (lv + 1)), ok = lv < 2 && c.every((v, i) => inv[i] >= v), b = document.createElement('button');
+      b.innerHTML = `${n} (Lv ${lv}/2)<small>${lv >= 2 ? 'Maksimal' : c.map((v, i) => (v ? RES[i] + ' ' + v : '')).filter(Boolean).join(', ') + ', +50% produksi'}</small>`;
+      b.className = ok ? '' : 'no';
+      b.onclick = () => {
+        if (!ok) return ui.toast(lv >= 2 ? 'Sudah maksimal' : lackOf(c, build.inv()));
+        build.grant(c.map((v) => -v)); UPG[k] = lv + 1; ui.toast(`${n} di-upgrade`); renderWb();
+      };
+      box.appendChild(b);
+    });
+  }
+  $('wbX').onclick = () => { $('wb').hidden = true; };
+
+  streamNodes(); player.solid = solid;
+  return { interact, driving: () => driving, drive, dismount, update(dt) {
+    nodes.forEach((n) => { // suplai habis muncul lagi di tempat acak (30-150 m dari pemain, jauh dari bangunan)
+      if (n.t > 0 && (n.t -= dt) <= 0) {
+        const p = player.obj.position, a = Math.random() * 6.283, d = 30 + Math.random() * 120, x = p.x + Math.sin(a) * d, z = p.z + Math.cos(a) * d;
+        if ((Math.abs(x) < 26 && Math.abs(z) < 26) || build.items.some((i) => Math.hypot(i.x - x, i.z - z) < 10)) { n.t = 3; return; }
+        n.x = x; n.z = z; n.o.position.set(x, heightAt(x, z), z); n.hp = 3; n.o.visible = true; n.o.scale.setScalar(1);
+      }
+    });
+    if (sw.t > 0) {
+      sw.t -= dt; const k = 1 - Math.max(sw.t, 0) / .6; player.mineK = k; player.lock = true;
+      if (!sw.done && k >= .92) { sw.done = true; burst(sw.n); hit(sw.n); }
+      if (sw.t <= 0) { player.mineK = -1; player.lock = false; }
+    }
+    if (rover && rsw.t > 0) { // lengan rover: angkat lalu hantam
+      rsw.t -= dt; const k = 1 - Math.max(rsw.t, 0) / .7, a = k < .4 ? -.9 * (k / .4) : -.9 + 1.6 * ((k - .4) / .6) ** 2;
+      rover.g.userData.arm.rotation.x = a;
+      if (!rsw.done && k >= .9) { rsw.done = true; burst(rsw.n); hit(rsw.n); }
+      if (rsw.t <= 0) rover.g.userData.arm.rotation.x = -.3;
+    }
+    for (let i = chips.length - 1; i >= 0; i--) {
+      const m = chips[i], u = m.userData; u.l -= dt; u.v.y -= 9 * dt; m.position.addScaledVector(u.v, dt);
+      if (u.l <= 0) { scene.remove(m); chips.splice(i, 1); }
+    }
+    cabG.visible = true; // area hijau teraliri selalu terlihat
+    runMiners(dt);
+    doorG.children.forEach((m) => {
+      const u = m.userData; u.t = cl(u.t + (doors.get(u.key) ? 1 : -1) * dt / 1.8, 0, 1);
+      u.hinge.rotation.y = ease(cl((u.t - .3) / .7, 0, 1)) * 1.85; u.wheel.rotation.z = ease(Math.min(1, u.t / .3)) * 2.4;
+      u.lampM.color.setHex(u.t > .5 ? 0x4aff8a : 0xff4a3a);
+    });
+    if ((acc += dt) > .3) {
+      acc = 0; syncDoors(); syncPower(); syncStubs(); cleanNodes(); streamNodes();
+      const pp = player.obj.position, inside = shapes.some((s) => ins(s, pp.x, pp.z, 0));
+      const air = inside && airShapes.some((s) => ins(s, pp.x, pp.z, 0));
+      if (inside !== wasIn || air !== wasAir) { wasIn = inside; wasAir = air; colony.inside(inside, air); ui.toast(!inside ? 'Di luar modul: oksigen baju terpakai' : air ? 'Di dalam modul: oksigen baju terisi' : 'Di dalam modul: tidak ada Generator O2 aktif, oksigen baju tidak terisi'); }
+      if (!build.flying()) { const n = driving ? null : nearest(); $('bAct').textContent = driving ? (roverTarget() ? 'Tambang' : 'Aksi') : n ? n.label : (bag.food > 0 ? 'Makan' : 'Aksi'); }
+    }
+  } };
+}
+
+/* ===== SUARA (tanpa musik, dibuat dengan WebAudio) ===== */
+let AC = null;
+function SFX(n) {
+  if (!SFX.on) return;
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state === 'suspended') AC.resume();
+    const t = AC.currentTime;
+    const tone = (f, d, ty, v, f2) => { const o = AC.createOscillator(), g = AC.createGain(); o.type = ty; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + d); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + d); o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + d); };
+    const noise = (d, v, fc) => { const b = AC.createBuffer(1, Math.floor(AC.sampleRate * d), AC.sampleRate), a = b.getChannelData(0); for (let i = 0; i < a.length; i++) a[i] = Math.random() * 2 - 1; const s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain(); s.buffer = b; f.type = 'lowpass'; f.frequency.value = fc; g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + d); s.connect(f); f.connect(g); g.connect(AC.destination); s.start(t); };
+    const S = {
+      hit: () => { noise(.12, .5, 1800); tone(180, .1, 'square', .12, 80); }, break: () => { noise(.35, .6, 900); tone(120, .3, 'sawtooth', .15, 50); },
+      step: () => noise(.07, .12, 500), build: () => { tone(220, .12, 'square', .15, 440); noise(.08, .25, 3000); },
+      door: () => { tone(300, .35, 'sawtooth', .07, 90); noise(.3, .12, 1200); }, pick: () => { tone(660, .08, 'sine', .2); tone(990, .12, 'sine', .15); },
+      eat: () => { noise(.06, .4, 2500); setTimeout(() => noise(.06, .4, 2200), 110); }, err: () => tone(120, .18, 'square', .12),
+      up: () => { tone(520, .15, 'triangle', .2); tone(780, .3, 'triangle', .2); } };
+    if (S[n]) S[n]();
+  } catch (e) {}
+}
+SFX.on = true;
+const bag = { food: 0 };
+const EXTRA = { get: () => ({}), set: () => {} }; // keadaan tambahan (slot tangan, rover) untuk simpan/muat; diisi oleh initPlay
+
+/* ===== MENU UTAMA & SIMPAN DUNIA (Phase 5): disimpan di perangkat (localStorage) ===== */
+/* ===== GABUNG DUNIA (persiapan): cari dunia lewat nama dunia + nama koloni ===== */
+const norm = (s) => (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+// Sekarang hanya membaca simpanan di perangkat ini. Nanti cukup ganti isi find() dengan Firestore/server, UI tidak berubah.
+const WorldDirectory = {
+  async find(worldName, colonyName) {
+    let d = null;
+    try { d = JSON.parse(localStorage.getItem('mc_save')); } catch (e) {}
+    if (!d || !d.meta || norm(d.meta.world) !== norm(worldName) || norm(d.meta.colony) !== norm(colonyName)) return null;
+    return { id: d.meta.id || null, world: d.meta.world, colony: d.meta.colony, owner: d.meta.owner || 'local', level: d.col ? d.col.level : 1, buildings: (d.items || []).length, saved: d.t, source: 'local' };
+  },
+};
+// Bentuk permintaan gabung yang nanti dikirim ke server. Saat ini selalu ditolak karena mabar belum ada.
+async function requestJoin(info) {
+  return { ok: false, reason: 'MULTIPLAYER_NOT_READY', request: { worldId: info.id, world: info.world, colony: info.colony, role: 'guest', at: Date.now() } };
+}
+
+function initSave(ui, build, colony, player) {
+  const KEY = 'mc_save', meta = { world: 'Dunia Utama', colony: 'Koloni Alpha', id: null, owner: 'local' };
+  const newId = () => 'w_' + Math.random().toString(36).slice(2, 10);
+  let acc = 0, sure = false;
+  const read = () => { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } };
+  const names = () => { document.querySelector('.tl b').textContent = meta.colony; };
+  const sound = () => { $('sndBtn').textContent = $('mSnd').textContent = `Suara: ${SFX.on ? 'Nyala' : 'Mati'}`; };
+  function save(auto) {
+    const p = player.obj.position;
+    if (!meta.id) meta.id = newId();
+    const d = { v: 2, t: Date.now(), meta, player: { x: p.x, y: p.y, z: p.z, yaw: player.yaw }, inv: build.inv(), items: build.serialize(), upg: UPG, bag, col: colony.state(), snd: SFX.on, extra: EXTRA.get() };
+    try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { return ui.toast('Gagal menyimpan: penyimpanan perangkat penuh atau diblokir'); }
+    $('saveBtn').textContent = `Simpan dunia (terakhir ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })})`;
+    if (!auto) ui.toast('Dunia disimpan di perangkat');
+  }
+  function load(d) {
+    Object.assign(meta, d.meta); if (!meta.id) meta.id = newId(); names();
+    build.restore(d.items, d.inv);
+    Object.keys(UPG).forEach((k) => delete UPG[k]); Object.assign(UPG, d.upg);
+    bag.food = d.bag.food; colony.load(d.col); EXTRA.set(d.extra || null);
+    player.obj.position.set(d.player.x, d.player.y, d.player.z); player.yaw = d.player.yaw;
+    SFX.on = d.snd !== false; sound();
+  }
+  function fresh(w, c) {
+    meta.world = w || 'Dunia Utama'; meta.colony = c || 'Koloni Alpha'; meta.id = newId(); meta.owner = 'local'; names();
+    build.restore([], START.slice()); Object.keys(UPG).forEach((k) => delete UPG[k]); bag.food = 0;
+    colony.load({ st: { o: 100, w: 100, e: 50, f: 100 }, level: 1 }); player.reset(); EXTRA.set(null);
+  }
+  const menu = () => { const d0 = read(); $('mCont').disabled = !d0; $('mWorldInfo').textContent = d0 && d0.meta ? `Dunia tersimpan: ${d0.meta.world} / ${d0.meta.colony}` : ''; $('mJoinF').hidden = true; $('mMain').hidden = false; $('mNewF').hidden = true; $('menu').hidden = false; $('pause').hidden = true; ui.paused = true; };
+  let wl = null;
+  const keepAwake = async () => { try { if (navigator.wakeLock && !wl) { wl = await navigator.wakeLock.request('screen'); wl.addEventListener('release', () => { wl = null; }); } } catch (e) {} };
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { if (!ui.paused) save(true); } else if (!ui.paused) keepAwake(); });
+  addEventListener('pagehide', () => { if (!ui.paused) save(true); });
+  const start = () => { $('menu').hidden = true; ui.resume(); keepAwake(); };
+
+  $('mCont').onclick = () => { const d = read(); if (d) { load(d); start(); } };
+  $('mNew').onclick = () => { $('mMain').hidden = true; $('mNewF').hidden = false; };
+  $('mBack').onclick = () => { sure = false; $('mGo').textContent = 'Mulai'; $('mMain').hidden = false; $('mNewF').hidden = true; };
+  $('mGo').onclick = () => {
+    if (read() && !sure) { sure = true; $('mGo').textContent = 'Timpa dunia lama? Ketuk lagi'; return; }
+    sure = false; $('mGo').textContent = 'Mulai';
+    fresh($('mWorld').value.trim(), $('mCol').value.trim()); save(true); start();
+  };
+  $('mSet').onclick = () => { $('quality').click(); $('mSet').textContent = $('quality').textContent; };
+  $('mGoogle').onclick = () => ui.toast('Login Google belum aktif: perlu konfigurasi Firebase. Progres tersimpan di perangkat ini.');
+  let found = null;
+  $('mJoin').onclick = () => { $('mMain').hidden = true; $('mJoinF').hidden = false; $('mJRes').textContent = ''; $('mJoinGo').hidden = true; found = null; };
+  $('mJBack').onclick = () => { $('mMain').hidden = false; $('mJoinF').hidden = true; };
+  $('mFind').onclick = async () => {
+    const w = $('mJW').value, c = $('mJC').value;
+    $('mJoinGo').hidden = true; found = null;
+    if (!norm(w) || !norm(c)) { $('mJRes').textContent = 'Isi nama dunia dan nama koloni.'; return; }
+    $('mJRes').textContent = 'Mencari...';
+    found = await WorldDirectory.find(w, c);
+    if (!found) { $('mJRes').textContent = 'Dunia tidak ditemukan di perangkat ini.\nPencarian online menyusul (butuh server).'; return; }
+    $('mJRes').textContent = `Ditemukan: ${found.world} / ${found.colony}\nLevel ${found.level}, ${found.buildings} bangunan\nID dunia: ${found.id || 'belum ada (simpan dunia sekali)'}\nPemilik: perangkat ini`;
+    $('mJoinGo').hidden = false;
+  };
+  $('mJoinGo').onclick = async () => { const r = await requestJoin(found); ui.toast(r.ok ? 'Bergabung' : 'Mabar belum aktif, ini baru persiapan. Permintaan gabung sudah disiapkan.'); };
+  $('sndBtn').onclick = $('mSnd').onclick = () => { SFX.on = !SFX.on; sound(); SFX('pick'); };
+  $('saveBtn').onclick = () => save(false);
+  $('menuBtn').onclick = () => { save(true); menu(); };
+  $('mSet').textContent = $('quality').textContent; sound(); menu();
+  return { update(dt) { if (!ui.paused && (acc += dt) > 30) { acc = 0; save(true); } } };
+}
+
+/* ===== GAME (renderer, kualitas grafis, loop) ===== */
+const canvas = $('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, 1, .1, 700);
+const world = createWorld(scene);
+const player = new Player(scene, camera, world.colliders);
+const input = new Input(canvas);
+document.body.classList.toggle('touch', input.touch);
+
+const QUALITY = { Low: { pr: 1, shadow: 512 }, Medium: { pr: 1.5, shadow: 1024 }, High: { pr: 2, shadow: 2048 } };
+let quality = null;
+try { quality = localStorage.getItem('mc_quality'); } catch (e) {}
+if (!QUALITY[quality]) quality = input.touch ? 'Low' : 'High';
+
+function resize() {
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+}
+function applyQuality(name) {
+  const c = QUALITY[name];
+  quality = name;
+  try { localStorage.setItem('mc_quality', name); } catch (e) {}
+  renderer.setPixelRatio(Math.min(devicePixelRatio, c.pr));
+  const s = world.sun.shadow;
+  s.mapSize.set(c.shadow, c.shadow);
+  if (s.map) s.map.dispose();
+  s.map = null;
+  resize();
+}
+addEventListener('resize', resize);
+applyQuality(quality);
+
+const ui = initUI({
+  quality,
+  onQuality: () => { const k = Object.keys(QUALITY); applyQuality(k[(k.indexOf(quality) + 1) % k.length]); return quality; },
+  onReset: () => player.reset(),
+});
+input.onAction = (a) => {
+  if (a === 'pause') { if ($('menu').hidden) ui.toggle(); }
+  else if (a === 'build') { if (!ui.paused) { if (play.driving()) play.dismount(); else build.toggle(); } }
+  else if (!ui.paused) play.interact();
+};
+
+const build = initBuilding(scene, camera, player, ui, world);
+const colony = initColony(build, ui);
+const play = initPlay(scene, player, build, colony, ui);
+const sv = initSave(ui, build, colony, player);
+const clock = new THREE.Clock();
+let lastStep = 0;
+const perf = { t0: performance.now(), n: 0 };
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), .05), np = performance.now();
+  if (ui.paused) { perf.t0 = np; perf.n = 0; } else if (++perf.n && np - perf.t0 > 5000) { // FPS < 24 selama 5 detik: grafis diturunkan satu tingkat
+    const fps = perf.n * 1000 / (np - perf.t0); perf.t0 = np; perf.n = 0;
+    if (fps < 24 && quality !== 'Low') { const ks = Object.keys(QUALITY); applyQuality(ks[Math.max(0, ks.indexOf(quality) - 1)]); ui.toast(`FPS rendah, grafis diturunkan ke ${quality}`); }
+  }
+  const i = input.poll();
+  if (!ui.paused) {
+    if (!build.flying()) { if (play.driving()) play.drive(dt, i); else player.update(dt, i); }
+    const sp = Math.floor(player.phase / Math.PI);
+    if (sp !== lastStep) { lastStep = sp; if (!build.flying() && player.phase > 0 && player.ground !== false) SFX('step'); }
+    world.follow(build.flying() ? build.focus : player.obj.position);
+    ui.setPos(player.obj.position.x, player.obj.position.z);
+  }
+  if (!ui.paused) { colony.update(dt); play.update(dt); sv.update(dt); }
+  build.update(dt, i);
+  renderer.render(scene, camera);
+});
+})();
+</script>
+</body>
+</html>
