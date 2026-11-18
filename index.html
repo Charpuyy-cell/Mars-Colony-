@@ -117,7 +117,7 @@ body.building #hotbar{display:none}
 </div>
 <div id="pause"><div class="card">
   <h1>MARS COLONY</h1>
-  <p class="sub">Prototype 1.2, Phase 6b</p>
+  <p class="sub">Prototype 1.2, Phase 6d + Firebase Phase 1</p>
   <button id="resume">Mulai</button>
   <button id="quality"></button>
   <button id="reset">Reset posisi</button>
@@ -134,13 +134,37 @@ body.building #hotbar{display:none}
 <div class="modal" id="wb" hidden><div class="card"><h2>Workbench</h2><p class="sub">Upgrade peralatan. Blueprint bangunan menyusul.</p><div id="wbList" style="display:flex;flex-direction:column;gap:8px"></div><button id="wbX">Tutup</button></div></div>
 <div class="modal" id="menu" style="z-index:8;background:rgba(6,10,12,.88)"><div class="card">
   <h1>MARS COLONY</h1><p class="sub">Prototype 0.9, Phase 6d</p><p class="sub" id="mWorldInfo"></p>
-  <div class="col" id="mMain"><button id="mCont">Lanjutkan</button><button id="mNew">Dunia baru</button><button id="mJoin">Gabung dunia</button><button id="mSet"></button><button id="mSnd"></button><button id="mGoogle">Login Google (belum aktif)</button></div>
+  <div class="col" id="mMain"><button id="mCont">Lanjutkan</button><button id="mNew">Dunia baru</button><button id="mJoin">Gabung dunia</button><button id="mSet"></button><button id="mSnd"></button><button id="mGoogle">Login Google</button></div>
   <div class="col" id="mNewF" hidden><input id="mWorld" placeholder="Nama dunia" maxlength="24"><input id="mCol" placeholder="Nama koloni" maxlength="24"><button id="mGo">Mulai</button><button id="mBack">Kembali</button></div>
   <div class="col" id="mJoinF" hidden><input id="mJW" placeholder="Nama dunia" maxlength="24"><input id="mJC" placeholder="Nama koloni" maxlength="24"><button id="mFind">Cari dunia</button><div id="mJRes"></div><button id="mJoinGo" class="no" hidden>Gabung (mabar belum aktif)</button><button id="mJBack">Kembali</button></div>
 </div></div>
 <div id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script>
+// Firebase Phase 1: Google Authentication + Firestore Cloud Save.
+// API key ini adalah Web API key Firebase (bukan kredensial Admin).
+const MARS_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAf4mQj9olQ7qvQ88RqpKZiB3RGhA6pafc",
+  authDomain: "mars-colony-25933.firebaseapp.com",
+  databaseURL: "https://mars-colony-25933-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "mars-colony-25933",
+  storageBucket: "mars-colony-25933.firebasestorage.app",
+  messagingSenderId: "1026213387192",
+  appId: "1:1026213387192:web:daa33cc5ac74f7f29fcd4d",
+  measurementId: "G-1VGTDF2K34"
+};
+try {
+  if (!firebase.apps.length) firebase.initializeApp(MARS_FIREBASE_CONFIG);
+  window.MarsFirebase = { auth: firebase.auth(), db: firebase.firestore(), ready: true };
+} catch (e) {
+  console.error('Mars Colony Firebase init error:', e);
+  window.MarsFirebase = { ready: false, error: e };
+}
+</script>
 <script>
 (() => {
 const $ = (id) => document.getElementById(id);
@@ -1494,13 +1518,88 @@ function initSave(ui, build, colony, player) {
   const read = () => { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } };
   const names = () => { document.querySelector('.tl b').textContent = meta.colony; };
   const sound = () => { $('sndBtn').textContent = $('mSnd').textContent = `Suara: ${SFX.on ? 'Nyala' : 'Mati'}`; };
+  const cloud = window.MarsFirebase && window.MarsFirebase.ready ? window.MarsFirebase : null;
+  let cloudBusy = false, cloudPending = null, cloudUser = null, authReady = false;
+  const googleButton = $('mGoogle');
+  function setAuthLabel() {
+    googleButton.textContent = cloudUser ? `Google: ${cloudUser.displayName || cloudUser.email || 'Login'} (Keluar)` : 'Login Google';
+  }
+  async function pushCloud(data, quiet = true) {
+    if (!cloud || !cloud.auth.currentUser || !data || !data.meta || !data.meta.id) return;
+    if (cloudBusy) { cloudPending = data; return; }
+    cloudBusy = true;
+    let next = data;
+    try {
+      while (next) {
+        const payload = next;
+        next = null;
+        await cloud.db.collection('users').doc(cloud.auth.currentUser.uid)
+          .collection('worlds').doc(String(payload.meta.id)).set({
+            worldId: String(payload.meta.id),
+            worldName: String(payload.meta.world || 'Dunia Utama'),
+            colonyName: String(payload.meta.colony || 'Koloni Alpha'),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            save: payload
+          });
+        next = cloudPending; cloudPending = null;
+      }
+      if (!quiet) ui.toast('Cloud Save berhasil disimpan');
+    } catch (e) {
+      console.error('Mars Colony cloud save error:', e);
+      if (!quiet) ui.toast('Cloud Save gagal. Periksa Firestore Rules dan koneksi.');
+    } finally { cloudBusy = false; }
+  }
+  async function syncCloudOnLogin(user) {
+    if (!cloud || !user) return;
+    try {
+      let local = read();
+      if (local && local.meta && local.meta.id) {
+        const ref = cloud.db.collection('users').doc(user.uid).collection('worlds').doc(String(local.meta.id));
+        const snap = await ref.get();
+        const remote = snap.exists ? snap.data().save : null;
+        if (remote && Number(remote.t || 0) > Number(local.t || 0)) {
+          localStorage.setItem(KEY, JSON.stringify(remote));
+          $('mCont').disabled = false;
+          $('mWorldInfo').textContent = `Cloud Save: ${remote.meta?.world || 'Dunia'} / ${remote.meta?.colony || 'Koloni'}`;
+          ui.toast('Cloud Save lebih baru ditemukan. Tekan Lanjutkan untuk memuatnya.');
+        } else if (!remote || Number(local.t || 0) >= Number(remote.t || 0)) {
+          await pushCloud(local, true);
+          ui.toast('Login berhasil. Dunia lokal disinkronkan ke cloud.');
+        }
+      } else {
+        const list = await cloud.db.collection('users').doc(user.uid).collection('worlds').orderBy('updatedAt', 'desc').limit(1).get();
+        if (!list.empty) {
+          const remote = list.docs[0].data().save;
+          if (remote) {
+            localStorage.setItem(KEY, JSON.stringify(remote));
+            $('mCont').disabled = false;
+            $('mWorldInfo').textContent = `Cloud Save: ${remote.meta?.world || 'Dunia'} / ${remote.meta?.colony || 'Koloni'}`;
+            ui.toast('Cloud Save ditemukan di akun Google ini. Tekan Lanjutkan.');
+          }
+        } else ui.toast('Login berhasil. Belum ada Cloud Save untuk akun ini.');
+      }
+      $('mCont').disabled = !read();
+    } catch (e) {
+      console.error('Mars Colony cloud sync error:', e);
+      ui.toast('Login berhasil, tetapi sinkronisasi gagal. Periksa Firestore Rules.');
+    }
+  }
+  if (cloud) {
+    cloud.auth.onAuthStateChanged(async (user) => {
+      cloudUser = user; authReady = true; setAuthLabel();
+      if (user) await syncCloudOnLogin(user);
+    });
+  } else {
+    googleButton.textContent = 'Firebase tidak tersedia';
+  }
   function save(auto) {
     const p = player.obj.position;
     if (!meta.id) meta.id = newId();
     const d = { v: 2, t: Date.now(), meta, player: { x: p.x, y: p.y, z: p.z, yaw: player.yaw }, inv: build.inv(), items: build.serialize(), upg: UPG, bag, col: colony.state(), snd: SFX.on, extra: EXTRA.get() };
     try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { return ui.toast('Gagal menyimpan: penyimpanan perangkat penuh atau diblokir'); }
     $('saveBtn').textContent = `Simpan dunia (terakhir ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })})`;
-    if (!auto) ui.toast('Dunia disimpan di perangkat');
+    if (cloudUser) pushCloud(d, auto);
+    if (!auto) ui.toast(cloudUser ? 'Dunia disimpan di perangkat; sinkronisasi cloud berjalan.' : 'Dunia disimpan di perangkat');
   }
   function load(d) {
     Object.assign(meta, d.meta); if (!meta.id) meta.id = newId(); names();
@@ -1531,7 +1630,28 @@ function initSave(ui, build, colony, player) {
     fresh($('mWorld').value.trim(), $('mCol').value.trim()); save(true); start();
   };
   $('mSet').onclick = () => { $('quality').click(); $('mSet').textContent = $('quality').textContent; };
-  $('mGoogle').onclick = () => ui.toast('Login Google belum aktif: perlu konfigurasi Firebase. Progres tersimpan di perangkat ini.');
+  googleButton.onclick = async () => {
+    if (!cloud) return ui.toast('Firebase belum siap. Periksa koneksi internet dan konfigurasi.');
+    try {
+      if (cloud.auth.currentUser) {
+        await cloud.auth.signOut();
+        ui.toast('Logout berhasil. Save lokal tetap aman di perangkat.');
+        return;
+      }
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      try { await cloud.auth.signInWithPopup(provider); }
+      catch (e) {
+        if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment'].includes(e.code)) {
+          await cloud.auth.signInWithRedirect(provider);
+        } else throw e;
+      }
+    } catch (e) {
+      console.error('Mars Colony Google login error:', e);
+      const msg = e.code === 'auth/unauthorized-domain' ? 'Domain belum ditambahkan di Firebase Authorized domains.' : (e.code === 'permission-denied' ? 'Firestore Rules belum mengizinkan akses.' : 'Login Google gagal: ' + (e.message || e.code || 'cek koneksi'));
+      ui.toast(msg);
+    }
+  };
   let found = null;
   $('mJoin').onclick = () => { $('mMain').hidden = true; $('mJoinF').hidden = false; $('mJRes').textContent = ''; $('mJoinGo').hidden = true; found = null; };
   $('mJBack').onclick = () => { $('mMain').hidden = false; $('mJoinF').hidden = true; };
