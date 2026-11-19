@@ -1318,6 +1318,21 @@ function initPlay(scene, player, build, colony, ui) {
   build.hooks.bind = (it, n) => { it.store = { m: [0, 0, 0, 0, 0], nt: n.type }; dropNode(n); };
   build.hooks.unbind = (it) => { const nt = it.store && it.store.nt; if (!nt) return; const o = mk(nt); o.position.set(it.x, heightAt(it.x, it.z), it.z); nodeG.add(o); nodes.push({ type: nt, o, x: it.x, z: it.z, hp: 3, t: 0 }); };
   function cleanNodes() { build.items.forEach((it) => { if (it.type === 'miner') nodes.filter((n) => Math.hypot(n.x - it.x, n.z - it.z) < 2.5).forEach(dropNode); }); }
+  let restockT = 0;
+  function restock() { // tiap 1 menit: suplai habis pulih + suplai baru muncul di sekitar pemain (titik bermesin tidak disentuh)
+    const p = player.obj.position, ok = (x, z) => !(Math.abs(x) < 26 && Math.abs(z) < 26) && !build.items.some((i) => Math.hypot(i.x - x, i.z - z) < 10);
+    const key = (x, z) => Math.round(x / CS2) + ',' + Math.round(z / CS2);
+    const pick = () => { for (let k = 0; k < 12; k++) { const a = Math.random() * 6.283, d = 25 + Math.random() * 95, x = p.x + Math.sin(a) * d, z = p.z + Math.cos(a) * d; if (ok(x, z) && loaded.has(key(x, z))) return [x, z]; } return null; };
+    let back = 0, added = 0;
+    nodes.forEach((n) => { if (n.hp <= 0) { const s = pick(); if (s) { n.x = s[0]; n.z = s[1]; n.o.position.set(s[0], heightAt(s[0], s[1]), s[1]); n.hp = 3; n.t = 0; n.o.visible = true; n.o.scale.setScalar(1); back++; } } });
+    for (let i = 0; i < 12 && nodes.length < 160; i++) { // 12 titik baru per menit, maksimal 160 titik di dunia yang dimuat
+      const s = pick(); if (!s) continue;
+      const type = ['rock', 'dune', 'junk'][(Math.random() * 3) | 0], o = mk(type);
+      o.position.set(s[0], heightAt(s[0], s[1]), s[1]); o.rotation.y = Math.random() * 6; nodeG.add(o);
+      const n = { type, o, x: s[0], z: s[1], hp: 3, t: 0 }; nodes.push(n); loaded.get(key(s[0], s[1])).push(n); added++;
+    }
+    ui.toast(`Suplai baru muncul di sekitar (${back + added} titik)`);
+  }
   const mineT = new WeakMap();
   function runMiners(dt) { // tiap 10 detik, mesin yang teraliri listrik menambah hasil (maks 60 per mesin)
     build.items.forEach((it) => {
@@ -1456,6 +1471,7 @@ function initPlay(scene, player, build, colony, ui) {
     }
     cabG.visible = true; // area hijau teraliri selalu terlihat
     runMiners(dt);
+    restockT += dt; if (restockT >= 60) { restockT = 0; restock(); }
     doorG.children.forEach((m) => {
       const u = m.userData; u.t = cl(u.t + (doors.get(u.key) ? 1 : -1) * dt / 1.8, 0, 1);
       u.hinge.rotation.y = ease(cl((u.t - .3) / .7, 0, 1)) * 1.85; u.wheel.rotation.z = ease(Math.min(1, u.t / .3)) * 2.4;
