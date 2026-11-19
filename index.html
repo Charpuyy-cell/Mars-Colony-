@@ -136,7 +136,7 @@ body.building #hotbar{display:none}
   <h1>MARS COLONY</h1><p class="sub">Prototype 0.9, Phase 6d</p><p class="sub" id="mWorldInfo"></p>
   <div class="col" id="mMain"><button id="mCont">Lanjutkan</button><button id="mNew">Dunia baru</button><button id="mJoin">Gabung dunia</button><button id="mSet"></button><button id="mSnd"></button><button id="mGoogle">Login Google</button></div>
   <div class="col" id="mNewF" hidden><input id="mWorld" placeholder="Nama dunia" maxlength="24"><input id="mCol" placeholder="Nama koloni" maxlength="24"><button id="mGo">Mulai</button><button id="mBack">Kembali</button></div>
-  <div class="col" id="mJoinF" hidden><input id="mJW" placeholder="Nama dunia" maxlength="24"><input id="mJC" placeholder="Nama koloni" maxlength="24"><button id="mFind">Cari dunia</button><div id="mJRes"></div><button id="mJoinGo" class="no" hidden>Gabung (mabar belum aktif)</button><button id="mJBack">Kembali</button></div>
+  <div class="col" id="mJoinF" hidden><input id="mJW" placeholder="Nama dunia" maxlength="24"><input id="mJC" placeholder="Nama koloni" maxlength="24"><button id="mFind">Cari dunia</button><div id="mJRes"></div><div class="col" id="mJList"></div><button id="mJoinGo" class="no" hidden>Gabung (mabar belum aktif)</button><button id="mJBack">Kembali</button></div>
 </div></div>
 <div id="toast"></div>
 
@@ -1522,6 +1522,25 @@ const WorldDirectory = {
     return { id: d.meta.id || null, world: d.meta.world, colony: d.meta.colony, owner: d.meta.owner || 'local', level: d.col ? d.col.level : 1, buildings: (d.items || []).length, saved: d.t, source: 'local' };
   },
 };
+// Pencarian online di koleksi publicWorlds (hanya metadata publik). Prefix search pada worldNameKey dan/atau colonyNameKey, hasil digabung tanpa duplikat.
+WorldDirectory.search = async function (worldName, colonyName) {
+  const fb = window.MarsFirebase;
+  if (!fb || !fb.ready || !fb.auth.currentUser) return { error: 'LOGIN' };
+  const col = fb.db.collection('publicWorlds'), wk = norm(worldName), ck = norm(colonyName), seen = new Map();
+  const q = (field, v, n) => col.where(field, '>=', v).where(field, '<=', v + '\uf8ff').limit(n).get();
+  const add = (snap, keep) => snap.forEach((d) => {
+    const x = d.data();
+    if (!keep(x)) return;
+    seen.set(d.id, { id: x.worldId, world: x.worldName, colony: x.colonyName, owner: x.ownerName || 'Pemain', ownerUid: x.ownerUid, source: 'online' });
+  });
+  const startsW = (x) => String(x.worldNameKey || '').startsWith(wk), startsC = (x) => String(x.colonyNameKey || '').startsWith(ck);
+  if (wk && ck) { // keduanya diisi: harus cocok dengan KEDUA kolom (AND). Filter kolom kedua di sisi klien karena Firestore butuh indeks gabungan untuk dua rentang berbeda.
+    const [a, b] = await Promise.all([q('worldNameKey', wk, 50), q('colonyNameKey', ck, 50)]);
+    add(a, startsC); add(b, startsW);
+  } else if (wk) add(await q('worldNameKey', wk, 20), () => true);
+  else if (ck) add(await q('colonyNameKey', ck, 20), () => true);
+  return { list: [...seen.values()], me: fb.auth.currentUser.uid };
+};
 // Bentuk permintaan gabung yang nanti dikirim ke server. Saat ini selalu ditolak karena mabar belum ada.
 async function requestJoin(info) {
   return { ok: false, reason: 'MULTIPLAYER_NOT_READY', request: { worldId: info.id, world: info.world, colony: info.colony, role: 'guest', at: Date.now() } };
@@ -1540,6 +1559,26 @@ function initSave(ui, build, colony, player) {
   function setAuthLabel() {
     googleButton.textContent = cloudUser ? `Google: ${cloudUser.displayName || cloudUser.email || 'Login'} (Keluar)` : 'Login Google';
   }
+  let pubKey = '', pubAt = 0;
+  async function publishPublic(m) { // metadata publik saja (tanpa data save); maks sekali per 5 menit kecuali nama berubah
+    try {
+      const u = cloud && cloud.auth.currentUser;
+      if (!u || !m || !m.id) return;
+      const key = [u.uid, m.id, m.world, m.colony].join('|');
+      if (key === pubKey && Date.now() - pubAt < 300000) return;
+      await cloud.db.collection('publicWorlds').doc(u.uid + '_' + String(m.id)).set({
+        worldId: String(m.id),
+        worldName: String(m.world || 'Dunia Utama'),
+        colonyName: String(m.colony || 'Koloni Alpha'),
+        worldNameKey: norm(m.world || 'Dunia Utama'),
+        colonyNameKey: norm(m.colony || 'Koloni Alpha'),
+        ownerUid: u.uid,
+        ownerName: String(u.displayName || 'Pemain').slice(0, 40),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      pubKey = key; pubAt = Date.now();
+    } catch (e) { console.error('Mars Colony publicWorlds error:', e); }
+  }
   async function pushCloud(data, quiet = true) {
     if (!cloud || !cloud.auth.currentUser || !data || !data.meta || !data.meta.id) return;
     if (cloudBusy) { cloudPending = data; return; }
@@ -1557,6 +1596,7 @@ function initSave(ui, build, colony, player) {
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             save: payload
           });
+        publishPublic(payload.meta);
         next = cloudPending; cloudPending = null;
       }
       if (!quiet) ui.toast('Cloud Save berhasil disimpan');
@@ -1575,6 +1615,7 @@ function initSave(ui, build, colony, player) {
         const remote = snap.exists ? snap.data().save : null;
         if (remote && Number(remote.t || 0) > Number(local.t || 0)) {
           localStorage.setItem(KEY, JSON.stringify(remote));
+          publishPublic(remote.meta);
           $('mCont').disabled = false;
           $('mWorldInfo').textContent = `Cloud Save: ${remote.meta?.world || 'Dunia'} / ${remote.meta?.colony || 'Koloni'}`;
           ui.toast('Cloud Save lebih baru ditemukan. Tekan Lanjutkan untuk memuatnya.');
@@ -1588,6 +1629,7 @@ function initSave(ui, build, colony, player) {
           const remote = list.docs[0].data().save;
           if (remote) {
             localStorage.setItem(KEY, JSON.stringify(remote));
+            publishPublic(remote.meta);
             $('mCont').disabled = false;
             $('mWorldInfo').textContent = `Cloud Save: ${remote.meta?.world || 'Dunia'} / ${remote.meta?.colony || 'Koloni'}`;
             ui.toast('Cloud Save ditemukan di akun Google ini. Tekan Lanjutkan.');
@@ -1669,17 +1711,37 @@ function initSave(ui, build, colony, player) {
     }
   };
   let found = null;
-  $('mJoin').onclick = () => { $('mMain').hidden = true; $('mJoinF').hidden = false; $('mJRes').textContent = ''; $('mJoinGo').hidden = true; found = null; };
+  $('mJoin').onclick = () => { $('mMain').hidden = true; $('mJoinF').hidden = false; $('mJRes').textContent = ''; $('mJList').textContent = ''; $('mJoinGo').hidden = true; found = null; };
   $('mJBack').onclick = () => { $('mMain').hidden = false; $('mJoinF').hidden = true; };
-  $('mFind').onclick = async () => {
-    const w = $('mJW').value, c = $('mJC').value;
-    $('mJoinGo').hidden = true; found = null;
-    if (!norm(w) || !norm(c)) { $('mJRes').textContent = 'Isi nama dunia dan nama koloni.'; return; }
-    $('mJRes').textContent = 'Mencari...';
-    found = await WorldDirectory.find(w, c);
-    if (!found) { $('mJRes').textContent = 'Dunia tidak ditemukan di perangkat ini.\nPencarian online menyusul (butuh server).'; return; }
-    $('mJRes').textContent = `Ditemukan: ${found.world} / ${found.colony}\nLevel ${found.level}, ${found.buildings} bangunan\nID dunia: ${found.id || 'belum ada (simpan dunia sekali)'}\nPemilik: perangkat ini`;
+  const showWorld = (x, me) => {
+    found = x;
+    const own = x.ownerUid ? (x.ownerUid === me ? 'kamu' : x.owner) : 'perangkat ini';
+    $('mJRes').textContent = `Dunia: ${x.world}\nKoloni: ${x.colony}\nPemilik: ${own}\nID dunia: ${x.id || 'belum ada (simpan dunia sekali)'}` + (x.level ? `\nLevel ${x.level}, ${x.buildings} bangunan` : '');
     $('mJoinGo').hidden = false;
+  };
+  $('mFind').onclick = async () => {
+    const w = $('mJW').value, c = $('mJC').value, list = $('mJList');
+    $('mJoinGo').hidden = true; found = null; list.textContent = '';
+    if (!norm(w) && !norm(c)) { $('mJRes').textContent = 'Isi nama dunia atau nama koloni.'; return; }
+    $('mJRes').textContent = 'Mencari...';
+    let r;
+    try { r = await WorldDirectory.search(w, c); } catch (e) {
+      console.error('Mars Colony directory error:', e);
+      $('mJRes').textContent = 'Gagal mencari dunia. Periksa koneksi dan Firestore Rules untuk publicWorlds.'; return;
+    }
+    if (r.error === 'LOGIN') { // belum login: pakai pencarian lama di perangkat ini
+      if (norm(w) && norm(c)) found = await WorldDirectory.find(w, c);
+      if (found) { showWorld(found); return; }
+      $('mJRes').textContent = 'Login Google untuk mencari dunia di direktori.\nPencarian di perangkat ini juga tidak menemukan dunia itu.'; return;
+    }
+    if (!r.list.length) { $('mJRes').textContent = 'Dunia tidak ditemukan.'; return; }
+    $('mJRes').textContent = `${r.list.length} dunia ditemukan. Pilih satu:`;
+    r.list.forEach((x) => {
+      const b = document.createElement('button'), s = document.createElement('small');
+      b.textContent = x.world; s.textContent = `${x.colony} | pemilik: ${x.owner}`; b.appendChild(s);
+      b.onclick = () => showWorld(x, r.me);
+      list.appendChild(b);
+    });
   };
   $('mJoinGo').onclick = async () => { const r = await requestJoin(found); ui.toast(r.ok ? 'Bergabung' : 'Mabar belum aktif, ini baru persiapan. Permintaan gabung sudah disiapkan.'); };
   $('sndBtn').onclick = $('mSnd').onclick = () => { SFX.on = !SFX.on; sound(); SFX('pick'); };
