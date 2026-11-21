@@ -117,11 +117,12 @@ body.building #hotbar{display:none}
 </div>
 <div id="pause"><div class="card">
   <h1>MARS COLONY</h1>
-  <p class="sub">Prototype 1.2, Phase 6d + Firebase Phase 1</p>
+  <p class="sub">Prototype 1.3, Phase 6d + Firebase Phase 3</p>
   <button id="resume">Mulai</button>
   <button id="quality"></button>
   <button id="reset">Reset posisi</button>
   <button id="saveBtn">Simpan dunia</button>
+  <button id="roomBtn">Room online: Buka</button>
   <button id="menuBtn">Menu utama</button><button id="sndBtn"></button>
   <p class="keys">WASD gerak, Shift lari, Space loncat, tahan klik dan geser untuk kamera, E atau tombol Aksi interaksi, I tas, B panel bangun, F tempatkan, R putar, T/G level, Z undo, 1-6 mode, mode bangun = kamera bebas (Space naik, C turun, klik pasang), Esc jeda</p>
 </div></div>
@@ -136,7 +137,7 @@ body.building #hotbar{display:none}
   <h1>MARS COLONY</h1><p class="sub">Prototype 0.9, Phase 6d</p><p class="sub" id="mWorldInfo"></p>
   <div class="col" id="mMain"><button id="mCont">Lanjutkan</button><button id="mNew">Dunia baru</button><button id="mJoin">Gabung dunia</button><button id="mSet"></button><button id="mSnd"></button><button id="mGoogle">Login Google</button></div>
   <div class="col" id="mNewF" hidden><input id="mWorld" placeholder="Nama dunia" maxlength="24"><input id="mCol" placeholder="Nama koloni" maxlength="24"><button id="mGo">Mulai</button><button id="mBack">Kembali</button></div>
-  <div class="col" id="mJoinF" hidden><input id="mJW" placeholder="Nama dunia" maxlength="24"><input id="mJC" placeholder="Nama koloni" maxlength="24"><button id="mFind">Cari dunia</button><div id="mJRes"></div><div class="col" id="mJList"></div><button id="mJoinGo" class="no" hidden>Gabung (mabar belum aktif)</button><button id="mJBack">Kembali</button></div>
+  <div class="col" id="mJoinF" hidden><input id="mJW" placeholder="Nama dunia" maxlength="24"><input id="mJC" placeholder="Nama koloni" maxlength="24"><button id="mFind">Cari dunia</button><div id="mJRes"></div><div class="col" id="mJList"></div><button id="mJoinGo" hidden>Gabung room</button><button id="mJBack">Kembali</button></div>
 </div></div>
 <div id="toast"></div>
 
@@ -144,6 +145,7 @@ body.building #hotbar{display:none}
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
 <script>
 // Firebase Phase 1: Google Authentication + Firestore Cloud Save.
 // API key ini adalah Web API key Firebase (bukan kredensial Admin).
@@ -164,6 +166,10 @@ try {
   console.error('Mars Colony Firebase init error:', e);
   window.MarsFirebase = { ready: false, error: e };
 }
+// Realtime Database (multiplayer). Diinisialisasi terpisah: kegagalan di sini tidak mempengaruhi Auth dan Firestore.
+try {
+  if (window.MarsFirebase && window.MarsFirebase.ready && firebase.database) window.MarsFirebase.rtdb = firebase.database();
+} catch (e) { console.error('Mars Colony Realtime Database init error:', e); }
 </script>
 <script>
 (() => {
@@ -1543,11 +1549,13 @@ WorldDirectory.search = async function (worldName, colonyName) {
 };
 // Bentuk permintaan gabung yang nanti dikirim ke server. Saat ini selalu ditolak karena mabar belum ada.
 async function requestJoin(info) {
-  return { ok: false, reason: 'MULTIPLAYER_NOT_READY', request: { worldId: info.id, world: info.world, colony: info.colony, role: 'guest', at: Date.now() } };
+  if (!window.MarsNet) return { ok: false, reason: 'MULTIPLAYER_NOT_READY', message: 'Multiplayer belum siap.' };
+  return window.MarsNet.join(info);
 }
 
 function initSave(ui, build, colony, player) {
   const KEY = 'mc_save', meta = { world: 'Dunia Utama', colony: 'Koloni Alpha', id: null, owner: 'local' };
+  window.MarsWorldMeta = () => meta; // dibaca modul multiplayer (id dunia untuk membuka room)
   const newId = () => 'w_' + Math.random().toString(36).slice(2, 10);
   let acc = 0, sure = false;
   const read = () => { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } };
@@ -1743,12 +1751,334 @@ function initSave(ui, build, colony, player) {
       list.appendChild(b);
     });
   };
-  $('mJoinGo').onclick = async () => { const r = await requestJoin(found); ui.toast(r.ok ? 'Bergabung' : 'Mabar belum aktif, ini baru persiapan. Permintaan gabung sudah disiapkan.'); };
+  $('mJoinGo').onclick = async () => { // gabung room: pemain tetap memainkan dunianya sendiri, save milik host tidak disentuh
+    if (!found) return;
+    const st = (m) => { showWorld(found, cloudUser && cloudUser.uid); $('mJRes').textContent += '\n\n' + m; };
+    const d = read();
+    if (!d) return st('Buat dunia sendiri dulu (Dunia baru), baru gabung ke room orang lain.');
+    $('mJoinGo').disabled = true; st('Menghubungkan ke room...');
+    const r = await requestJoin(found);
+    $('mJoinGo').disabled = false;
+    if (!r.ok) return st(r.message || 'Gagal bergabung.');
+    load(d); start(); ui.toast(`Bergabung ke room ${found.world} (${r.count}/4 pemain)`);
+  };
   $('sndBtn').onclick = $('mSnd').onclick = () => { SFX.on = !SFX.on; sound(); SFX('pick'); };
   $('saveBtn').onclick = () => save(false);
   $('menuBtn').onclick = () => { save(true); menu(); };
   $('mSet').textContent = $('quality').textContent; sound(); menu();
   return { update(dt) { if (!ui.paused && (acc += dt) > 30) { acc = 0; save(true); } } };
+}
+
+/* ===== MULTIPLAYER (Phase 3): Firebase Realtime Database, sinkronisasi posisi 2-4 pemain ===== */
+// Room = {ownerUid}_{worldId} (sama dengan ID dokumen publicWorlds). Host = pemilik dunia. Slot 0-3 di database membatasi 4 pemain lewat Rules.
+function initNet(ui, player, scene) {
+  const MAX = 4, SEND_MS = 200, FRESH_MS = 30000;
+  const fb = window.MarsFirebase, rtdb = fb && fb.ready && fb.rtdb ? fb.rtdb : null;
+  const S = { room: null, role: null, uid: null, sid: null, connId: null, refs: null, off: [], count: 0, sent: 0, beat: 0, last: null, offset: 0, busy: false, ready: false, errs: 0, sessionHeld: false, reconnecting: false };
+  const avatars = new Map(), btn = $('roomBtn');
+  const TS = () => firebase.database.ServerValue.TIMESTAMP;
+  const nowS = () => Date.now() + S.offset;
+  const fail = (reason, message) => ({ ok: false, reason, message });
+  const user = () => (fb && fb.auth.currentUser) || null;
+  const pname = () => String((user() && user().displayName) || 'Pemain').slice(0, 40);
+  const label = () => { btn.textContent = S.room ? `${S.role === 'host' ? 'Tutup room' : 'Keluar room'} (${S.count}/${MAX})` : 'Room online: Buka'; };
+  const norm2 = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+  const playerVal = (role, sid) => { const p = player.obj.position; return { name: pname(), sid: sid || S.sid, x: +p.x.toFixed(2), y: +p.y.toFixed(2), z: +p.z.toFixed(2), ry: +norm2(player.obj.rotation.y).toFixed(2), t: TS(), host: (role || S.role) === 'host' }; };
+  const safeId = () => { const raw = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)); return String(raw).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80); };
+  const connected = () => new Promise((res) => {
+    const r = rtdb.ref('.info/connected');
+    let done = false, h = null, timer = null;
+    const finish = (value) => {
+      if (done) return;
+      done = true;
+      if (h) r.off('value', h);
+      if (timer) clearTimeout(timer);
+      res(value);
+    };
+    h = r.on('value', (s) => { if (s.val() === true) finish(true); });
+    timer = setTimeout(() => finish(false), 8000);
+  });
+
+  // Avatar astronaut pemain lain (bukan pemain lokal), warna berbeda per UID + label nama
+  function makeAvatar(uid, name, isHost) {
+    const g = new THREE.Group(), suit = SUIT.clone();
+    let h = 0; for (const ch of uid) h = (h * 31 + ch.charCodeAt(0)) % 360;
+    suit.color.setHSL(h / 360, .55, .7);
+    const part = (geo, m, x, y, z, parent = g) => { const me = new THREE.Mesh(geo, m); me.position.set(x, y, z); me.castShadow = true; parent.add(me); return me; };
+    part(box(.6, .7, .4), suit, 0, 1.15, 0); part(box(.46, .55, .22), GREY, 0, 1.2, -.3); part(box(.3, .08, .02), ACC, 0, 1.3, .21);
+    part(new THREE.SphereGeometry(.3, 12, 10), suit, 0, 1.75, 0); part(new THREE.SphereGeometry(.24, 12, 10), GOLD, 0, 1.75, .14).scale.set(1, .85, .75);
+    const limb = (w, hh, x, y) => { const pv = new THREE.Group(); pv.position.set(x, y, 0); g.add(pv); part(box(w, hh, w * 1.1), suit, 0, -hh / 2, 0, pv); return pv; };
+    const legs = [limb(.22, .8, -.15, .8), limb(.22, .8, .15, .8)], arms = [limb(.16, .6, -.4, 1.45), limb(.16, .6, .4, 1.45)];
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64;
+    const cx = cv.getContext('2d');
+    cx.fillStyle = 'rgba(20,10,8,.7)'; cx.fillRect(0, 8, 256, 48); cx.fillStyle = isHost ? '#f5c451' : '#5ee6d0';
+    cx.font = 'bold 28px sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText((isHost ? '* ' : '') + name, 128, 32, 240);
+    const tex = new THREE.CanvasTexture(cv), spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+    spr.scale.set(2.4, .6, 1); spr.position.set(0, 2.4, 0); spr.renderOrder = 10; g.add(spr);
+    scene.add(g);
+    return { g, legs, arms, tex, suit, spr, tx: 0, ty: 0, tz: 0, tr: 0, phase: 0, fresh: true };
+  }
+  function removeAvatar(uid) {
+    const a = avatars.get(uid); if (!a) return;
+    scene.remove(a.g); a.tex.dispose(); a.spr.material.dispose(); a.suit.dispose();
+    a.g.traverse((o) => { if (o.geometry && o.geometry.type === 'SphereGeometry') o.geometry.dispose(); });
+    avatars.delete(uid);
+  }
+  async function onPlayer(s) {
+    const uid = s.key, v = s.val();
+    if (!v || uid === S.uid || typeof v.x !== 'number' || typeof v.sid !== 'string') return;
+    // Data pemain boleh tertinggal setelah koneksi putus; avatar hanya ditampilkan
+    // selama SID pemain tersebut masih memiliki minimal satu koneksi presence aktif.
+    try {
+      const live = await S.refs.base.child('presence').child(uid).child(v.sid).once('value');
+      if (!live.exists()) { removeAvatar(uid); return; }
+    } catch (e) { onErr(e); return; }
+    let a = avatars.get(uid);
+    if (!a) { a = makeAvatar(uid, String(v.name || 'Pemain'), !!v.host); avatars.set(uid, a); }
+    a.tx = v.x; a.ty = v.y; a.tz = v.z; a.tr = v.ry || 0;
+    if (a.fresh) { a.g.position.set(a.tx, a.ty, a.tz); a.g.rotation.y = a.tr; a.fresh = false; }
+  }
+  const onErr = (e) => { console.error('Mars Colony multiplayer write error:', e); if (++S.errs === 3) ui.toast('Koneksi room bermasalah. Periksa internet atau Rules database.'); };
+  function send(force) {
+    const p = player.obj.position, ry = norm2(player.obj.rotation.y), L = S.last;
+    const moved = !L || Math.hypot(p.x - L.x, p.z - L.z) > .05 || Math.abs(p.y - L.y) > .05 || Math.abs(ry - L.ry) > .05;
+    if (!force && !moved && performance.now() - S.beat < 5000) return; // diam: cukup detak jantung tiap 5 detik
+    S.last = { x: p.x, y: p.y, z: p.z, ry }; S.beat = performance.now();
+    S.refs.player.update({ x: +p.x.toFixed(2), y: +p.y.toFixed(2), z: +p.z.toFixed(2), ry: +ry.toFixed(2), t: TS() }).catch(onErr);
+  }
+
+  async function enter(roomId, role) {
+    const u = user();
+    if (!rtdb) return fail('NO_RTDB', 'Database online belum siap. Periksa koneksi internet.');
+    if (!u) return fail('LOGIN', 'Login Google dulu untuk mabar.');
+    if (S.room) return fail('BUSY', 'Kamu sudah berada di sebuah room. Keluar dulu.');
+    if (S.busy) return fail('BUSY', 'Masih menghubungkan, tunggu sebentar.');
+    S.busy = true;
+    const sid = safeId(), connId = safeId();
+    const base = rtdb.ref('rooms/' + roomId), metaRef = base.child('meta'), playersRef = base.child('players'), slotsRef = base.child('slots');
+    const sessionRef = rtdb.ref('activeSessions/' + u.uid);
+    const presenceRef = base.child('presence').child(u.uid).child(sid).child(connId);
+    let slotRef = null, presenceRegistered = false, sessionHeld = false, metaCreated = false;
+    try {
+      if (!(await connected())) return fail('OFFLINE', 'Tidak bisa terhubung ke server. Periksa internet.');
+      S.offset = (await rtdb.ref('.info/serverTimeOffset').once('value')).val() || 0;
+      let hostMeta = null;
+      if (role === 'host') {
+        if (!roomId.startsWith(u.uid + '_')) return fail('NOT_OWNER', 'Hanya pemilik dunia yang bisa membuka room.');
+        hostMeta = (await metaRef.once('value')).val();
+        if (hostMeta && hostMeta.hostUid !== u.uid) return fail('INVALID', 'Room sudah terdaftar atas pemilik lain.');
+      } else {
+        const meta = (await metaRef.once('value')).val();
+        if (!meta) return fail('ROOM_CLOSED', 'Host belum membuka room untuk dunia ini (atau sudah menutupnya).');
+        if (!roomId.startsWith(meta.hostUid + '_')) return fail('INVALID', 'Room tidak valid.');
+        const hostPresence = await base.child('presence').child(meta.hostUid).child(meta.hostSid).once('value');
+        if (!hostPresence.exists()) return fail('HOST_OFFLINE', 'Host sedang tidak terhubung.');
+      }
+
+      // Cek lebih awal: kalau akun ini masih punya sesi lain yang hidup, beri pesan yang jelas (Rules tetap penjaga utama).
+      try {
+        const cur = (await sessionRef.once('value')).val();
+        if (cur && typeof cur.sid === 'string' && typeof cur.room === 'string') {
+          const live = await rtdb.ref('rooms/' + cur.room).child('presence').child(u.uid).child(cur.sid).once('value');
+          if (live.exists()) return fail('DUPLICATE', 'Akun Google ini masih memiliki sesi multiplayer aktif di perangkat atau tab lain.');
+        }
+      } catch (e) { console.warn('Mars Colony pre-check sesi dilewati:', e); }
+
+      // Daftarkan penghapusan hanya pada node koneksi unik ini; jangan pasang onDisconnect
+      // pada activeSessions, slot, player, atau meta karena node-node itu dipakai bersama.
+      await presenceRef.onDisconnect().remove();
+      await presenceRef.set({ connectedAt: TS() });
+      presenceRegistered = true;
+
+      // Rules akan menolak pengambilalihan jika sesi lama masih memiliki presence aktif.
+      const sessionValue = { sid, room: roomId, t: TS() };
+      const lockResult = await sessionRef.transaction(() => sessionValue);
+      if (!lockResult.committed || !lockResult.snapshot.exists() || lockResult.snapshot.child('sid').val() !== sid) {
+        await presenceRef.onDisconnect().cancel().catch(() => {});
+        await presenceRef.remove().catch(() => {});
+        presenceRegistered = false;
+        return fail('DUPLICATE', 'Akun Google ini masih memiliki sesi multiplayer aktif di perangkat atau tab lain.');
+      }
+      sessionHeld = true;
+
+      if (role === 'host') {
+        metaCreated = !hostMeta;
+        await metaRef.set({ hostUid: u.uid, hostSid: sid, hostName: pname(), createdAt: TS() });
+      }
+
+      // Bersihkan slot lama milik UID ini hanya jika SID lamanya sudah tidak punya presence.
+      const previousSlots = (await slotsRef.once('value')).val() || {};
+      for (const [oldSlot, oldEntry] of Object.entries(previousSlots)) {
+        if (!oldEntry || typeof oldEntry !== 'object' || oldEntry.uid !== u.uid || !oldEntry.sid || oldEntry.sid === sid) continue;
+        const oldPresence = await base.child('presence').child(u.uid).child(oldEntry.sid).once('value');
+        if (!oldPresence.exists()) await slotsRef.child(oldSlot).remove().catch(() => {});
+      }
+
+      let slot = -1;
+      for (let i = 0; i < MAX; i++) {
+        const ref = slotsRef.child(String(i));
+        const old = (await ref.once('value')).val();
+        let mayClaim = old === null;
+        if (old && typeof old === 'object' && old.uid && old.sid) {
+          const oldPresence = await base.child('presence').child(old.uid).child(old.sid).once('value');
+          mayClaim = !oldPresence.exists();
+        }
+        if (!mayClaim) continue;
+        const claim = await ref.transaction((cur) => {
+          if (cur === null) return { uid: u.uid, sid };
+          if (old && cur && cur.uid === old.uid && cur.sid === old.sid && mayClaim) return { uid: u.uid, sid };
+          return;
+        });
+        if (claim.committed && claim.snapshot.child('uid').val() === u.uid && claim.snapshot.child('sid').val() === sid) { slot = i; break; }
+      }
+      if (slot < 0) {
+        await presenceRef.onDisconnect().cancel().catch(() => {});
+        await presenceRef.remove().catch(() => {});
+        presenceRegistered = false;
+        if (role === 'host' && metaCreated) await metaRef.remove().catch(() => {});
+        await sessionRef.remove().catch(() => {});
+        sessionHeld = false;
+        return fail('FULL', `Room penuh (${MAX}/${MAX} pemain).`);
+      }
+      slotRef = slotsRef.child(String(slot));
+      await playersRef.child(u.uid).set(playerVal(role, sid));
+
+      Object.assign(S, { room: roomId, role, uid: u.uid, sid, connId, refs: { base, meta: metaRef, players: playersRef, slots: slotsRef, player: playersRef.child(u.uid), slot: slotRef, session: sessionRef, presence: presenceRef }, sessionHeld: true, count: 1, last: null, errs: 0, beat: performance.now(), sent: 0 });
+      const on = (ref, ev, fn) => { ref.on(ev, fn, (e) => onErr(e)); S.off.push(() => ref.off(ev, fn)); };
+      on(playersRef, 'child_added', onPlayer); on(playersRef, 'child_changed', onPlayer); on(playersRef, 'child_removed', (s) => removeAvatar(s.key));
+      on(slotsRef, 'value', (s) => { S.count = Object.keys(s.val() || {}).length; label(); });
+      on(base.child('presence'), 'child_removed', (s) => { if (s.key !== S.uid) removeAvatar(s.key); });
+      // child_changed juga menangkap hilangnya satu SID ketika node UID masih punya SID lain.
+      on(base.child('presence'), 'child_changed', async (s) => {
+        if (s.key === S.uid) return;
+        try {
+          const playerSnap = await playersRef.child(s.key).once('value');
+          const playerData = playerSnap.val();
+          if (!playerData || typeof playerData.sid !== 'string') { removeAvatar(s.key); return; }
+          const live = await base.child('presence').child(s.key).child(playerData.sid).once('value');
+          if (!live.exists()) removeAvatar(s.key);
+        } catch (e) { onErr(e); }
+      });
+      on(metaRef, 'value', (s) => { if (!s.exists() && S.role === 'guest' && S.room) leave('Host menutup room atau terputus.'); });
+      if (role === 'guest' && hostMeta === null) {
+        const joinedMeta = (await metaRef.once('value')).val();
+        if (joinedMeta && joinedMeta.hostUid && joinedMeta.hostSid) {
+          on(base.child('presence').child(joinedMeta.hostUid).child(joinedMeta.hostSid), 'value', (presence) => {
+            if (!presence.exists() && S.role === 'guest' && S.room) leave('Host terputus. Room dilepas.');
+          });
+        }
+      }
+      S.ready = true; label();
+      return { ok: true, role, count: S.count };
+    } catch (e) {
+      console.error('Mars Colony multiplayer error:', e);
+      const denied = /PERMISSION_DENIED/i.test(String((e && (e.code || e.message)) || ''));
+      // Presence dihapus lebih dulu agar Rules mengizinkan pembersihan node milik sesi ini.
+      try {
+        if (presenceRegistered) { await presenceRef.onDisconnect().cancel().catch(() => {}); await presenceRef.remove().catch(() => {}); }
+        if (slotRef) await slotRef.remove().catch(() => {});
+        await playersRef.child(u.uid).remove().catch(() => {});
+        if (role === 'host' && metaCreated) await metaRef.remove().catch(() => {});
+        if (sessionHeld) await sessionRef.remove().catch(() => {});
+      } catch (cleanupError) { console.warn('Mars Colony failed-enter cleanup:', cleanupError); }
+      return fail(denied ? 'DENIED' : 'ERROR', denied ? 'Akses ditolak. Pasang database.rules.json terbaru di Realtime Database > Rules, lalu coba lagi.' : 'Gagal terhubung ke room. Coba lagi.');
+    } finally {
+      S.busy = false;
+    }
+  }
+
+  async function leave(msg, cleanupServer = true) {
+    if (!S.room) return;
+    const r = S.refs, role = S.role, uid = S.uid, sid = S.sid, heldSession = S.sessionHeld;
+    S.off.forEach((f) => f()); S.off = []; S.room = null; S.refs = null; S.role = null; S.uid = null; S.sid = null; S.connId = null; S.ready = false; S.count = 0; S.sessionHeld = false;
+    [...avatars.keys()].forEach(removeAvatar); label();
+    if (cleanupServer && r) try {
+      // Hapus presence unik lebih dulu. Pointer global hanya dihapus bila masih menunjuk SID ini.
+      await r.presence.onDisconnect().cancel().catch(() => {});
+      await r.presence.remove();
+      await r.slot.remove().catch(() => {});
+      await r.player.remove().catch(() => {});
+      if (role === 'host') await r.meta.remove().catch(() => {});
+      if (heldSession) {
+        const current = (await r.session.once('value')).val();
+        if (current && current.sid === sid && current.room === r.base.key) await r.session.remove();
+      }
+    } catch (e) {
+      console.error('Mars Colony leave room error:', e);
+      ui.toast('Keluar room, tetapi pembersihan server belum terkonfirmasi. Periksa koneksi.');
+    }
+    if (msg) ui.toast(msg);
+  }
+
+  async function join(info) {
+    const u = user();
+    if (!info || !info.id) return fail('NO_WORLD', 'Dunia ini belum punya ID online. Pemiliknya perlu menyimpan dunia sekali.');
+    if (!info.ownerUid) return fail('LOCAL', 'Dunia dari perangkat sendiri tidak bisa digabung.');
+    if (!u) return fail('LOGIN', 'Login Google dulu untuk mabar.');
+    if (info.ownerUid === u.uid) return fail('OWN', 'Ini duniamu sendiri. Lanjutkan dunia ini, lalu buka room dari menu jeda.');
+    return enter(`${info.ownerUid}_${info.id}`, 'guest');
+  }
+
+  btn.onclick = async () => {
+    if (S.room) return leave(S.role === 'host' ? 'Room ditutup.' : 'Keluar dari room.');
+    const u = user(), m = window.MarsWorldMeta && window.MarsWorldMeta();
+    if (!u) return ui.toast('Login Google dulu untuk membuka room.');
+    if (!m || !m.id) return ui.toast('Simpan dunia dulu agar punya ID.');
+    btn.disabled = true; btn.textContent = 'Membuka room...';
+    const r = await enter(`${u.uid}_${m.id}`, 'host');
+    btn.disabled = false; label();
+    ui.toast(r.ok ? `Room dibuka (${S.count}/${MAX}). Pemain lain bisa gabung lewat Gabung dunia.` : r.message);
+  };
+  $('menuBtn').addEventListener('click', () => { if (S.room) leave('Keluar dari room.'); });
+  if (fb && fb.ready) fb.auth.onAuthStateChanged((u) => { if (!u && S.room) leave('Logout: keluar dari room.'); });
+  if (rtdb) {
+    rtdb.ref('.info/connected').on('value', async (s) => {
+      if (s.val() !== true) { if (S.room) S.sessionHeld = false; return; }
+      if (!S.room || !S.ready || S.reconnecting) return;
+      const r = S.refs, role = S.role, u = user(); if (!r || !u) return;
+      S.reconnecting = true;
+      try {
+        const nextConnId = safeId();
+        const nextPresence = r.base.child('presence').child(u.uid).child(S.sid).child(nextConnId);
+        await nextPresence.onDisconnect().remove();
+        await nextPresence.set({ connectedAt: TS() });
+        const lockResult = await r.session.transaction(() => ({ sid: S.sid, room: S.room, t: TS() }));
+        if (!lockResult.committed || lockResult.snapshot.child('sid').val() !== S.sid) {
+          await nextPresence.onDisconnect().cancel().catch(() => {});
+          await nextPresence.remove().catch(() => {});
+          S.sessionHeld = false;
+          leave('Sesi akun ini sudah aktif di perangkat atau tab lain. Room ini dilepas.', false);
+          return;
+        }
+        S.connId = nextConnId; S.refs.presence = nextPresence; S.sessionHeld = true;
+        if (role === 'host') await r.meta.set({ hostUid: u.uid, hostSid: S.sid, hostName: pname(), createdAt: TS() });
+        await r.slot.set({ uid: u.uid, sid: S.sid });
+        await r.player.set(playerVal(role, S.sid));
+        S.last = null;
+      } catch (e) { console.error('Mars Colony reconnect error:', e); leave('Koneksi room terputus.'); }
+      finally { S.reconnecting = false; }
+    });
+    setInterval(() => { if (S.room && S.ready && ui.paused && S.refs) S.refs.player.update({ t: TS() }).catch(() => {}); }, 20000); // saat dijeda: hanya detak jantung
+  }
+  label();
+  const api = {
+    join, leave, active: () => !!S.room,
+    update(dt) { // dipanggil hanya saat game tidak dijeda
+      if (S.room && S.ready && S.refs) { S.sent += dt * 1000; if (S.sent >= SEND_MS) { S.sent = 0; send(false); } }
+      if (!avatars.size) return;
+      const k = 1 - Math.exp(-dt * 10);
+      avatars.forEach((a) => {
+        const g = a.g, dx = a.tx - g.position.x, dz = a.tz - g.position.z, dist = Math.hypot(dx, dz);
+        if (dist > 30) g.position.set(a.tx, a.ty, a.tz); else { g.position.x += dx * k; g.position.z += dz * k; g.position.y += (a.ty - g.position.y) * k; }
+        g.rotation.y += norm2(a.tr - g.rotation.y) * k;
+        const sp = dist / Math.max(dt, .001); a.phase += Math.min(sp, 8) * dt * 1.8;
+        const sw = Math.sin(a.phase) * .7 * Math.min(1, sp / 2.5);
+        a.legs[0].rotation.x = sw; a.legs[1].rotation.x = -sw; a.arms[0].rotation.x = -sw; a.arms[1].rotation.x = sw;
+      });
+    },
+  };
+  window.MarsNet = api;
+  return api;
 }
 
 /* ===== GAME (renderer, kualitas grafis, loop) ===== */
@@ -1803,6 +2133,7 @@ const build = initBuilding(scene, camera, player, ui, world);
 const colony = initColony(build, ui);
 const play = initPlay(scene, player, build, colony, ui);
 const sv = initSave(ui, build, colony, player);
+const net = initNet(ui, player, scene);
 const clock = new THREE.Clock();
 let lastStep = 0;
 const perf = { t0: performance.now(), n: 0 };
@@ -1820,7 +2151,7 @@ renderer.setAnimationLoop(() => {
     world.follow(build.flying() ? build.focus : player.obj.position);
     ui.setPos(player.obj.position.x, player.obj.position.z);
   }
-  if (!ui.paused) { colony.update(dt); play.update(dt); sv.update(dt); }
+  if (!ui.paused) { colony.update(dt); play.update(dt); sv.update(dt); net.update(dt); }
   build.update(dt, i);
   renderer.render(scene, camera);
 });
