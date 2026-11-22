@@ -1,3 +1,4 @@
+
 name: Check Mars Colony PWA
 
 on:
@@ -8,11 +9,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
       - name: Validate PWA
-        run: npx --yes @bubblewrap/cli validate --url=https://charpuyy-cell.github.io/Mars-Colony-/
-        
+        run: |
+          docker run --rm ghcr.io/googlechromelabs/bubblewrap:latest validate --url=https://charpuyy-cell.github.io/Mars-Colony-/
+          
