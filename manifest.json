@@ -1,27 +1,14 @@
-
-{
-  "id": "/Mars-Colony-/",
-  "name": "Mars Colony",
-  "short_name": "Mars Colony",
-  "description": "Explore, build, and survive on Mars with friends.",
-  "start_url": "/Mars-Colony-/",
-  "scope": "/Mars-Colony-/",
-  "display": "standalone",
-  "orientation": "landscape",
-  "background_color": "#170b0a",
-  "theme_color": "#e85b16",
-  "icons": [
-    {
-      "src": "/Mars-Colony-/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/Mars-Colony-/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    }
-  ]
-}
+"icons": [
+  {
+    "src": "/Mars-Colony-/mars-colony-icon-192.png",
+    "sizes": "192x192",
+    "type": "image/png",
+    "purpose": "any"
+  },
+  {
+    "src": "/Mars-Colony-/mars-colony-icon-512.png",
+    "sizes": "512x512",
+    "type": "image/png",
+    "purpose": "any"
+  }
+]
