@@ -1,0 +1,30 @@
+name: Initialize Mars Colony TWA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  initialize:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Initialize Bubblewrap
+        run: |
+          npx --yes @bubblewrap/cli init \
+            --manifest=https://charpuyy-cell.github.io/Mars-Colony-/manifest.json \
+            --directory=./mars-colony-android \
+            --packageId=com.fth_dev.marscolony \
+            --appName="Mars Colony" \
+            --launcherName="Mars Colony" \
+            --themeColor="#e85b16" \
+            --backgroundColor="#170b0a" \
+            --startUrl="https://charpuyy-cell.github.io/Mars-Colony-/" \
+            --display=standalone \
+            --orientation=landscape \
+            --skipPwaValidation
+
