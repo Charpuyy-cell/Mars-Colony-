@@ -1,3 +1,4 @@
+
 name: Initialize Mars Colony TWA
 
 on:
@@ -13,18 +14,13 @@ jobs:
         with:
           node-version: 20
 
-      - name: Initialize Bubblewrap
+      - name: Check Bubblewrap CLI
         run: |
-          npx --yes @bubblewrap/cli init \
-            --manifest=https://charpuyy-cell.github.io/Mars-Colony-/manifest.json \
-            --directory=./mars-colony-android \
-            --packageId=com.fth_dev.marscolony \
-            --appName="Mars Colony" \
-            --launcherName="Mars Colony" \
-            --themeColor="#e85b16" \
-            --backgroundColor="#170b0a" \
-            --startUrl="https://charpuyy-cell.github.io/Mars-Colony-/" \
-            --display=standalone \
-            --orientation=landscape \
-            --skipPwaValidation
+          npx --yes @bubblewrap/cli --version
 
+      - name: Check Android SDK
+        run: |
+          echo "Android SDK:"
+          echo "$ANDROID_HOME"
+          test -d "$ANDROID_HOME"
+          
