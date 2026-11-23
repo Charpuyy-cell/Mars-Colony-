@@ -98,6 +98,12 @@ body.building #hotbar{display:none}
 .bagtop button{padding:8px 18px}
 #bagTools{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
 #mJRes{font-size:12px;line-height:1.5;white-space:pre-line;text-align:left;opacity:.9;min-height:18px}
+.tr{max-width:46vw;gap:2px 10px}.tr span{font-size:11px}
+#netTag{color:var(--ac);font-weight:700}
+#dash{width:136px;padding:6px 10px}
+.nd.big{font-size:13px;padding:2px 0 7px}.nd.big b{font-weight:700;font-size:15px}.nd.big i{height:4px}
+.nd:not(.big) span{opacity:.75}
+.nd.low b,.nd.low span{color:#ff8a6b}
 </style>
 </head>
 <body>
@@ -105,7 +111,7 @@ body.building #hotbar{display:none}
 <div id="hud">
   <div class="panel tl"><b>Koloni Alpha</b><span id="lvTxt">Level 1, basis bertahan hidup</span><small id="pos">X 0 Z 0</small></div>
   <div class="panel" id="dash"><div id="dNeeds"></div><div id="dList" hidden></div><small>Syarat level ▸</small></div>
-  <div class="panel tr"><span>Credits 0</span><span id="r0"></span><span id="r1"></span><span id="r2"></span><span id="r3"></span><span id="r4"></span><span>Tamu</span></div>
+  <div class="panel tr"><span id="r0"></span><span id="r1"></span><span id="r2"></span><span id="r3"></span><span id="r4"></span><span id="netTag" hidden></span></div>
   <button id="pausebtn" class="round top" aria-label="Jeda">II</button>
   <button id="bagbtn" class="round top2" aria-label="Tas">Tas</button>
   <div id="joy"><i></i></div>
@@ -174,6 +180,7 @@ try {
 <script>
 (() => {
 const $ = (id) => document.getElementById(id);
+const VISIT = { on: false, begin: null, end: null }; // guest di room: dunia aktif = dunia host, dunia pribadi disimpan terpisah
 
 /* ===== DUNIA (terrain, langit, batu, batas area) ===== */
 const FM = new Set(), fmk = (a, b) => FM.has((a + 4096) * 8192 + b + 4096) ? 1 : 0; // simpul 4 m yang diratakan oleh bangunan
@@ -514,7 +521,7 @@ function initBuilding(scene, camera, player, ui, world) {
   const root = new THREE.Group(), items = [], undoStack = [], rc = new THREE.Raycaster();
   const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0)), v3 = new THREE.Vector3(), geos = {}, bps = {};
   const S = { on: false, mode: 'build', g: 'Modul', sel: 0, rot: 0, lv: 0, col: 0, carry: null, bp: 1, min: false, ndc: new THREE.Vector2(0, 0) };
-  const hooks = {};
+  const hooks = {}, shMap = new Map(); // shMap: bangunan milik dunia host (kunci database -> item)
   const F = { pos: new THREE.Vector3(), yaw: 0, pitch: .75 }, focus = new THREE.Vector3(), MG = {};
   let inv = START.slice(), nid = 1, hl = null, gSpec = null, ghost = null, hintTxt = '', grid = null, portsDirty = true, lastA = { x: 0, z: 0 };
   const ghostMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: .5, depthWrite: false, side: THREE.DoubleSide });
@@ -551,7 +558,7 @@ function initBuilding(scene, camera, player, ui, world) {
   for (const n of [1, 2, 3]) { try { bps[n] = JSON.parse(localStorage.getItem('mc_bp' + n)); } catch (e) {} }
 
   const say = (m) => ui.toast(m);
-  const hud = () => inv.forEach((v, i) => { $('r' + i).textContent = `${RES[i]} ${v}`; });
+  const hud = () => inv.forEach((v, i) => { $('r' + i).textContent = `${RES_S[i]} ${v}`; $('r' + i).title = RES[i]; });
   const afford = (s) => s.cost.every((c, i) => inv[i] >= c);
   const pay = (s, k) => { s.cost.forEach((c, i) => { inv[i] -= k * c; }); hud(); };
   const geo = (w, h, d, o) => {
@@ -869,6 +876,7 @@ function initBuilding(scene, camera, player, ui, world) {
     if (h !== hintTxt) { hintTxt = h; $('hint').textContent = h; }
   }
   function toggle() {
+    if (hooks.locked && hooks.locked()) return say('Dunia milik host: hanya host yang bisa membangun'); // guest memakai dunia host
     S.on = !S.on; document.body.classList.toggle('building', S.on); grid.visible = S.on;
     items.forEach((it) => { const d = it.obj.userData.decal; if (d) d.visible = S.on; });
     $('bBuild').textContent = S.on ? 'Tutup' : 'Bangun'; $('bJump').textContent = S.on ? 'Naik' : 'Loncat'; $('bAct').textContent = S.on ? 'Turun' : 'Aksi';
@@ -880,17 +888,29 @@ function initBuilding(scene, camera, player, ui, world) {
     render();
   }
   hud(); render();
-  return { toggle, update, serialize, flying: () => S.on, focus, items, inv: () => inv, hooks, carried: () => (S.carry ? S.carry.it : null), view: (b) => { // salinan visual bangunan milik host (tidak masuk items, tidak ikut save)
-    const s = CAT.find((c) => c.id === b.k);
-    if (!s) return null;
-    const obj = makeObj(s, typeof b.c === 'number' ? b.c : null);
-    setT(obj, b.x, b.z, b.lv, b.rot);
-    if (typeof b.sc === 'number' && b.sc > 0 && b.sc !== 1) obj.scale.setScalar(b.sc);
-    if (obj.userData.decal) obj.userData.decal.visible = false;
-    world.flatten(b.x, b.z, rad({ spec: s, x: b.x, z: b.z, rot: b.rot }));
-    return { obj, spec: s };
+  return { toggle, update, serialize, flying: () => S.on, focus, items, inv: () => inv, hooks, carried: () => (S.carry ? S.carry.it : null), shared: {
+    apply(map) { // samakan item dunia host dengan data server berdasarkan ID unik: tidak ada duplikat, bangunan lain tidak tersentuh
+      const seen = new Set();
+      for (const key of Object.keys(map || {})) {
+        const b = map[key];
+        if (!b || typeof b.k !== 'string' || ![b.x, b.z, b.lv, b.rot].every((v) => typeof v === 'number' && isFinite(v))) continue;
+        const s = CAT.find((c) => c.id === b.k);
+        if (!s) continue; // tipe tidak dikenal versi game ini
+        seen.add(key);
+        const sig = [b.k, b.x, b.z, b.lv, b.rot, b.c].join('|'), old = shMap.get(key);
+        if (old && old.sig === sig) continue;
+        let store = null;
+        if (old) { store = old.it.store; detach(old.it); shMap.delete(key); }
+        const it = create(s, b.x, b.z, b.lv, b.rot, typeof b.c === 'number' ? b.c : null);
+        it.nk = key; it.shared = true; if (store) it.store = store;
+        shMap.set(key, { it, sig });
+      }
+      for (const [key, e] of shMap) if (!seen.has(key)) { detach(e.it); shMap.delete(key); }
+    },
+    clear() { shMap.forEach((e) => detach(e.it)); shMap.clear(); },
+    item: (key) => (shMap.get(key) || {}).it || null,
   }, restore: (list, inv2) => {
-    items.slice().forEach(detach);
+    shMap.clear(); items.slice().forEach(detach);
     list.forEach((b) => { const s = CAT.find((c) => c.id === b.type); if (!s) return; const it = create(s, b.x, b.z, b.lv, b.rot, b.color); if (b.store) it.store = b.store; });
     if (inv2) inv = inv2.slice();
     portsDirty = true; hud(); render();
@@ -898,7 +918,7 @@ function initBuilding(scene, camera, player, ui, world) {
 }
 
 /* ===== MANAJEMEN KOLONI (Phase 4): kebutuhan dasar, produksi fasilitas, level ===== */
-const NEEDS = [['o', 'O2 baju', '5ee6d0'], ['w', 'Air', '4a90c2'], ['e', 'Energi', 'd9c14a'], ['f', 'Kenyang', '6fcf6f']];
+const NEEDS = [['o', 'O2 baju', '5ee6d0'], ['h', 'Health', 'ff6b6b'], ['w', 'Air', '4a90c2'], ['e', 'Energi', 'd9c14a'], ['f', 'Kenyang', '6fcf6f']];
 const USE = { o: .5, w: .2, f: .15 }, REFILL = 6, LOADM = .04; // REFILL: isi O2 baju/detik di dalam modul beroksigen; LOADM: listrik per m2 bangunan // konsumsi koloni per detik
 // Fasilitas (per detik): isi = produksi, ue = pakai energi, uw = pakai air. Hanya komponen yang dipasang yang bekerja.
 const FAC = { miner: { ue: 2 }, solar: { e: 2 }, reactor: { e: 10 }, ogen: { o: 1.5, ue: 1 }, wgen: { w: 1, ue: 1 }, green: { f: .8, uw: .3, ue: .5 } };
@@ -907,11 +927,12 @@ const REQ = [['Kubah / modul hunian', (c) => c.dome], ['Generator O2', (c) => c.
 const LEVELS = ['', 'basis bertahan hidup', 'permukiman kecil'];
 
 function initColony(build, ui) {
-  const st = { o: 100, w: 100, e: 50, f: 100 }, rate = { o: 0, w: 0, e: 0, f: 0 }, rows = {}, warned = {};
-  let level = 1, cap = 100, t1 = 0, t2 = 0, c = {};
+  const st = { o: 100, w: 100, e: 50, f: 100, h: 100 }, rate = { o: 0, w: 0, e: 0, f: 0, h: 0 }, rows = {}, warned = {};
+  let level = 1, cap = 100, t1 = 0, t2 = 0, c = {}, guest = false, curEff = 1, faintFn = null;
+  const guestSim = { e: 50, eff: 1 }; // guest: energi dan efisiensi dari simulasi host
   NEEDS.forEach(([k, n, col]) => {
     const d = document.createElement('div');
-    d.className = 'nd'; d.innerHTML = `<span>${n}</span><b></b><i style="background:#${col}"></i>`;
+    d.className = 'nd' + (k === 'o' || k === 'h' ? ' big' : ''); d.innerHTML = `<span>${n}</span><b></b><i style="background:#${col}"></i>`;
     $('dNeeds').appendChild(d); rows[k] = d;
   });
   $('dash').onclick = () => { $('dList').hidden = !$('dList').hidden; list(); };
@@ -943,6 +964,7 @@ function initColony(build, ui) {
     });
   }
   function step(dt) {
+    if (guest) return stepGuest(dt);
     let gen = 0, need = 0;
     for (const k in FAC) { const n = c[k] || 0; gen += n * (FAC[k].e || 0) * (1 + .5 * (UPG[k] || 0)); need += n * (FAC[k].ue || 0); }
     for (const it of build.items) if (it.spec.kind === 'mod' && it.powered !== false) { // makin besar bangunan, makin boros listrik
@@ -967,7 +989,25 @@ function initColony(build, ui) {
     nx.w -= useW;
     st.w = tanks.length ? tanks.reduce((s, tk) => s + (tk.store.w || 0), 0) : Math.max(0, st.w - rem); // tanpa tangki: cadangan awal
     for (const k of ['o', 'f', 'e']) st[k] = Math.min(100, Math.max(0, st[k] + nx[k] * dt));
-    for (const k in rate) rate[k] = nx[k];
+    for (const k of ['o', 'w', 'e', 'f']) rate[k] = nx[k];
+    curEff = eff; vitals(dt);
+  }
+  // Health: kebutuhan survival PRIBADI. Tiap pemain menghitung milik sendiri; tidak pernah disinkronkan atau diambil dari pemain lain.
+  const HP_LOSS = 2, HP_REGEN = .4, clamp100 = (v) => Math.min(100, Math.max(0, v));
+  function vitals(dt) {
+    let dh = 0;
+    if (st.o <= 0) dh = -HP_LOSS; // O2 habis: Health turun bertahap
+    else if (st.o > 20 && st.w > 0 && st.f > 0) dh = HP_REGEN; // kebutuhan dasar terpenuhi: pulih pelan
+    st.h = clamp100(st.h + dh * dt); rate.h = dh;
+    if (st.h <= 0) { st.h = 50; st.o = 50; SFX('err'); ui.toast('Pingsan kehabisan oksigen! Kamu dibawa kembali ke basis'); if (faintFn) faintFn(); }
+  }
+  function stepGuest(dt) { // guest: hanya survival pribadi (O2, kenyang, Health). Produksi dan stok fasilitas dihitung host, tidak dihitung dua kali.
+    const refill = REFILL * (1 + .5 * (UPG.ogen || 0)) * guestSim.eff, no = sealed ? (hasAir ? refill : 0) : -USE.o;
+    st.o = clamp100(st.o + no * dt); st.f = clamp100(st.f - USE.f * dt);
+    const tanks = build.items.filter((i) => i.type === 'tank');
+    st.w = tanks.reduce((s, tk) => s + ((tk.store && tk.store.w) || 0), 0); st.e = guestSim.e;
+    rate.o = no; rate.f = -USE.f; rate.w = 0; rate.e = 0;
+    vitals(dt);
   }
   const stable = () => st.o > 0 && st.w > 0 && st.f > 0 && st.e > 0;
   function list() {
@@ -987,7 +1027,7 @@ function initColony(build, ui) {
   function show() {
     for (const [k, n] of NEEDS) {
       const r = rows[k], cp = k === 'w' ? Math.max(100, 100 * (c.tank || 0)) : 100, low = st[k] < cp * .15;
-      r.children[1].textContent = `${Math.round(st[k])} ${rate[k] >= 0 ? '+' : ''}${rate[k].toFixed(1)}`;
+      r.children[1].textContent = String(Math.round(st[k])); r.title = `${rate[k] >= 0 ? '+' : ''}${rate[k].toFixed(1)} per detik`;
       r.children[2].style.width = Math.min(100, st[k] / cp * 100) + '%';
       r.classList.toggle('low', low);
       if (low && !warned[k]) { warned[k] = 1; ui.toast(`${n} menipis!`); } else if (st[k] > cp * .3) warned[k] = 0;
@@ -995,11 +1035,14 @@ function initColony(build, ui) {
   }
   count(); show();
   return { info: () => ({ st, rate, cap }), eat: (v) => { st.f = Math.min(100, st.f + v); },
-    state: () => ({ st: Object.assign({}, st), level }),
-    load: (s) => { Object.assign(st, s.st); level = s.level; $('lvTxt').textContent = `Level ${level}, ${LEVELS[level]}`; }, inside: (v, air) => { sealed = v; hasAir = !!air; }, update(dt) {
+    state: () => ({ st: { o: st.o, w: st.w, e: st.e, f: st.f }, level }),
+    heal: (v) => { st.h = Math.min(100, st.h + v); }, onFaint: (f) => { faintFn = f; }, guest: (on) => { guest = !!on; },
+    simulate: (s) => { if (!s) return; if (isFinite(s.e)) guestSim.e = s.e; if (isFinite(s.eff)) guestSim.eff = s.eff; if (s.lv >= 1 && s.lv !== level) { level = s.lv; $('lvTxt').textContent = `Level ${level}, ${LEVELS[level] || ''}`; } },
+    sim: () => ({ e: Math.round(st.e * 10) / 10, eff: Math.round(curEff * 100) / 100, lv: level }),
+    load: (s) => { Object.assign(st, s.st); if (!(s.st && typeof s.st.h === 'number')) st.h = 100; level = s.level; $('lvTxt').textContent = `Level ${level}, ${LEVELS[level]}`; }, inside: (v, air) => { sealed = v; hasAir = !!air; }, update(dt) {
     count(); step(dt);
     if ((t1 += dt) > .25) { t1 = 0; show(); }
-    if ((t2 += dt) > 1) { t2 = 0; link(); check(); }
+    if ((t2 += dt) > 1) { t2 = 0; if (!guest) { link(); check(); } }
   } };
 }
 
@@ -1014,8 +1057,9 @@ const UPS = [['solar', 'Panel surya', [6, 0, 4, 2, 4]], ['reactor', 'Reaktor min
 const FACNAME = { miner: ['Mesin tambang', 'm', 'bahan'], ogen: ['Generator O2', 'o', 'oksigen'], tank: ['Tangki air', 'w', 'air'], wgen: ['Generator air', 'w', 'air'], green: ['Alat greenhouse', 'f', 'makanan'], solar: ['Panel surya', 'e', 'energi'], reactor: ['Reaktor mini', 'e', 'energi'], med: ['Ruang medis'], crate: ['Kontainer'], bench: ['Workbench'] };
 
 function initPlay(scene, player, build, colony, ui) {
-  const nodes = [], doors = new Map(), doorG = new THREE.Group(), nodeG = new THREE.Group();
-  let sig = '', acc = 0, held = null;
+  const nodes = [], doors = new Map(), doorG = new THREE.Group(), nodeG = new THREE.Group(), dmap = new Map(), pendDoor = new Map();
+  let sig = '', acc = 0, held = null, medCd = 0;
+  const dkey = (k) => k.replace(/\./g, 'p').replace(/\|/g, '_'); // kunci pintu aman untuk database
   scene.add(doorG, nodeG);
   const R = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
   const mat = (c, o) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: .9, flatShading: true }, o));
@@ -1161,6 +1205,7 @@ function initPlay(scene, player, build, colony, ui) {
       if (!door) return;
       const m = makeDoor();
       m.position.set(p.x, p.lv * LV + FL, p.z); m.rotation.y = Math.atan2(p.dx, p.dz);
+      dmap.set(dkey(k), k); if (pendDoor.has(dkey(k))) { doors.set(k, pendDoor.get(dkey(k))); pendDoor.delete(dkey(k)); }
       Object.assign(m.userData, { key: k, x: p.x, z: p.z, t: doors.get(k) ? 1 : 0 });
       doorG.add(m);
     });
@@ -1227,9 +1272,64 @@ function initPlay(scene, player, build, colony, ui) {
     }
   }
   function eat() { bag.food--; colony.eat(30); SFX('eat'); ui.toast(`Makan: kenyang +30 (sisa ${bag.food} makanan di tas)`); }
+  let rpcBusy = false;
+  function guestUse(it) { // guest memakai stok bersama lewat host: host memproses satu per satu, jadi tidak ada duplikasi resource
+    const ty = it.type, sto = it.store || {};
+    if (rpcBusy) return ui.toast('Permintaan sebelumnya masih diproses');
+    let req;
+    if (ty === 'crate') {
+      const m = sto.m || [0, 0, 0, 0, 0], have = build.inv();
+      if (m.some((v) => v > 0)) req = { a: 'crate', k: it.nk };
+      else if (have.some((v) => v > 0)) req = { a: 'crate', k: it.nk, dep: have.slice() };
+      else return ui.toast('Kontainer kosong');
+    } else req = { a: ty, k: it.nk };
+    rpcBusy = true;
+    build.hooks.rpc(req).then((res) => {
+      rpcBusy = false;
+      if (!res || !res.ok) { SFX('err'); return ui.toast((res && res.msg) || 'Gagal: host tidak merespons'); }
+      if (ty === 'tank') { colony.eat(10); SFX('eat'); ui.toast(`Minum dari tangki: kenyang +10 (air tersisa ${Math.round(res.left || 0)}/100)`); }
+      else if (ty === 'miner') { build.grant(res.m.slice()); SFX('pick'); ui.toast('Diambil: ' + res.m.map((v, i) => (v ? `${v} ${RES[i]}` : '')).filter(Boolean).join(', ')); }
+      else if (ty === 'green') { bag.food += res.n; SFX('pick'); ui.toast(`+${res.n} makanan dipanen. Tekan Aksi lagi untuk makan`); }
+      else if (res.dep) { build.grant(res.dep.map((v) => -v)); SFX('pick'); ui.toast('Semua bahan disimpan di kontainer. Aksi lagi untuk mengambil'); }
+      else { build.grant(res.m.slice()); SFX('pick'); ui.toast('Semua bahan diambil dari kontainer'); }
+    });
+  }
+  function serve(it, req) { // dijalankan HOST: satu-satunya penulis stok fasilitas. Mengembalikan hasil untuk guest.
+    const ty = it.type, sto = it.store || (it.store = {});
+    if (ty === 'tank' && req.a === 'tank') {
+      const w = sto.w || 0;
+      if (w < 5) return { ok: false, msg: 'Tangki hampir kosong' };
+      sto.w = w - 5; return { ok: true, left: sto.w };
+    }
+    if (ty === 'miner' && req.a === 'miner') {
+      const m = sto.m || (sto.m = [0, 0, 0, 0, 0]);
+      if (!m.some((v) => v > 0)) return { ok: false, msg: it.powered === false ? 'Mesin tambang belum teraliri listrik' : 'Mesin tambang masih bekerja, belum ada hasil' };
+      const got = m.map((v) => Math.max(0, Math.floor(v))); m.fill(0); return { ok: true, m: got };
+    }
+    if (ty === 'green' && req.a === 'green') {
+      const n = Math.floor(sto.f || 0);
+      if (n < 1) return { ok: false, msg: `Greenhouse: tanaman tumbuh (${(sto.f || 0).toFixed(1)}/20). Perlu air dan listrik` };
+      sto.f -= n; return { ok: true, n };
+    }
+    if (ty === 'crate' && req.a === 'crate') {
+      const m = sto.m || (sto.m = [0, 0, 0, 0, 0]);
+      if (req.dep) { for (let k = 0; k < 5; k++) m[k] += req.dep[k]; return { ok: true, dep: req.dep }; }
+      if (!m.some((v) => v > 0)) return { ok: false, msg: 'Kontainer kosong' };
+      const got = m.map((v) => Math.max(0, Math.floor(v))); m.fill(0); return { ok: true, m: got };
+    }
+    return { ok: false, msg: 'Fasilitas tidak cocok' };
+  }
+  build.hooks.serve = serve;
   function use(it) {
     const ty = it.type, sto = it.store || (it.store = {});
-    if (ty === 'bench') { $('wb').hidden = false; return renderWb(); }
+    if (it.shared && build.hooks.guest && build.hooks.guest() && ['tank', 'miner', 'green', 'crate'].includes(ty)) return guestUse(it);
+    if (ty === 'bench') { if (build.hooks.guest && build.hooks.guest()) return ui.toast('Upgrade hanya bisa dilakukan oleh host'); $('wb').hidden = false; return renderWb(); }
+    if (ty === 'med') { // Ruang medis: pulihkan Health pribadi (butuh listrik, jeda 15 detik)
+      if (it.powered === false) { SFX('err'); return ui.toast('Ruang medis belum teraliri listrik'); }
+      if (colony.info().st.h >= 99) return ui.toast('Health sudah penuh');
+      if (medCd > 0) return ui.toast(`Ruang medis sedang mendingin (${Math.ceil(medCd)} dtk)`);
+      colony.heal(40); medCd = 15; SFX('up'); return ui.toast('Ruang medis: Health +40');
+    }
     if (ty === 'miner') { // ambil hasil tambang
       const m = sto.m || (sto.m = [0, 0, 0, 0, 0]), got = m.map((v, i) => (v ? `${v} ${RES[i]}` : '')).filter(Boolean);
       if (!got.length) return ui.toast(it.powered === false ? 'Mesin tambang belum teraliri listrik' : 'Mesin tambang masih bekerja, belum ada hasil');
@@ -1261,7 +1361,7 @@ function initPlay(scene, player, build, colony, ui) {
     const t = nearest();
     if (!t) { if (bag.food > 0) return eat(); return ui.toast('Tidak ada yang bisa dipakai di dekat sini'); }
     if (t.k === 'rover') return board();
-    if (t.k === 'door') { const k = t.m.userData.key; doors.set(k, !doors.get(k)); SFX('door'); }
+    if (t.k === 'door') { const k = t.m.userData.key; doors.set(k, !doors.get(k)); SFX('door'); if (build.hooks.doorChanged) build.hooks.doorChanged(dkey(k), !!doors.get(k)); }
     else if (t.k === 'node') {
       const need = NODE[t.n.type].tool;
       if (held !== need) return ui.toast(`Pegang ${TOOLS.find((x) => x[0] === need)[1]} dulu (Tas, lalu Equip)`);
@@ -1350,6 +1450,7 @@ function initPlay(scene, player, build, colony, ui) {
   }
   const mineT = new WeakMap();
   function runMiners(dt) { // tiap 10 detik, mesin yang teraliri listrik menambah hasil (maks 60 per mesin)
+    if (build.hooks.guest && build.hooks.guest()) return; // produksi hanya dihitung host
     build.items.forEach((it) => {
       if (it.type !== 'miner' || !it.store || !it.store.nt || it.powered === false) return;
       const t = (mineT.get(it) || 0) + dt;
@@ -1369,6 +1470,7 @@ function initPlay(scene, player, build, colony, ui) {
   };
   build.hooks.rover = (x, z, rot) => { // dari menu build: merakit (bayar sekali) atau memindahkan rover
     if (driving) return ui.toast('Turun dari rover dulu');
+    if (build.hooks.roverBusy && build.hooks.roverBusy()) return ui.toast('Rover sedang dipakai pemain lain');
     if (!rover) {
       const inv = build.inv();
       if (!RCOST.every((v, i) => inv[i] >= v)) { SFX('err'); return ui.toast(lackOf(RCOST, inv)); }
@@ -1376,10 +1478,15 @@ function initPlay(scene, player, build, colony, ui) {
     } else ui.toast('Rover dipindahkan');
     Object.assign(rover, { x, z, hd: rot * Math.PI / 2, v: 0 }); placeRover();
   };
-  function board() {
-    if (!rover || driving) return;
-    driving = true; camOff = 0; player.obj.visible = false; $('bBuild').textContent = 'Turun'; SFX('door');
+  function startDrive() {
+    driving = true; camOff = 0; delete rover.tx; player.obj.visible = false; $('bBuild').textContent = 'Turun'; SFX('door');
     ui.toast('Naik rover: Aksi dekat sumber daya = tambang otomatis, tombol Turun = keluar');
+  }
+  function board() { // di room: izin naik diputuskan host (satu pengemudi per rover)
+    if (!rover || driving) return;
+    const q = build.hooks.roverBoard && build.hooks.roverBoard();
+    if (!q) return startDrive();
+    q.then((res) => { if (res && res.ok && rover && !driving) startDrive(); else { SFX('err'); ui.toast((res && res.msg) || 'Rover tidak bisa dipakai'); } });
   }
   function dismount() {
     if (!driving) return;
@@ -1427,10 +1534,16 @@ function initPlay(scene, player, build, colony, ui) {
     const a = e.target.dataset && e.target.dataset.r; if (!a) return;
     if (driving) return ui.toast('Turun dari rover dulu');
     if (a === 'make') {
+      if (build.hooks.guest && build.hooks.guest()) return ui.toast('Rover hanya bisa dirakit oleh host');
       const inv = build.inv();
       if (!RCOST.every((v, i) => inv[i] >= v)) { SFX('err'); return ui.toast(lackOf(RCOST, inv)); }
       build.grant(RCOST.map((v) => -v)); spawnRover(); SFX('build'); ui.toast('Rover surya selesai dirakit!');
-    } else { spawnRover(); ui.toast('Rover dipanggil ke dekatmu'); }
+    } else {
+      const rc = build.hooks.roverCall && build.hooks.roverCall();
+      if (rc) { rc.then((res) => ui.toast(res && res.ok ? 'Rover dipanggil ke dekatmu' : (res && res.msg) || 'Gagal memanggil rover')); return; }
+      if (build.hooks.roverBusy && build.hooks.roverBusy()) return ui.toast('Rover sedang dipakai pemain lain');
+      spawnRover(); ui.toast('Rover dipanggil ke dekatmu');
+    }
     renderRv(); renderBag();
   };
   $('bagTools').onclick = (e) => {
@@ -1461,7 +1574,20 @@ function initPlay(scene, player, build, colony, ui) {
   $('wbX').onclick = () => { $('wb').hidden = true; };
 
   streamNodes(); player.solid = solid;
-  return { interact, driving: () => driving, drive, dismount, update(dt) {
+  // ===== dunia bersama: pintu, rover, kebangkitan =====
+  function setDoors(map) { dmap.forEach((k, d) => doors.set(k, !!map[d])); pendDoor.clear(); for (const d of Object.keys(map)) if (!dmap.has(d)) pendDoor.set(d, !!map[d]); }
+  function resetDoors() { doors.clear(); dmap.clear(); pendDoor.clear(); sig = ''; }
+  function doorsState() { const o = {}; doors.forEach((v, k) => { if (v) o[dkey(k)] = true; }); return o; }
+  const roverPose = () => (rover ? { x: rover.x, z: rover.z, hd: rover.hd } : null);
+  function setRoverRemote(p) { // pose rover dari database (tidak mengubah rover yang sedang dikemudikan sendiri)
+    if (driving) return;
+    if (!p) { if (rover) { scene.remove(rover.g); rover = null; } return; }
+    if (!rover) { rover = { g: makeRover(), v: 0, y: 0, x: p.x, z: p.z, hd: p.hd }; scene.add(rover.g); placeRover(); }
+    rover.tx = p.x; rover.tz = p.z; rover.thd = p.hd;
+  }
+  function moveRover(x, z, hd) { if (!rover) return false; Object.assign(rover, { x, z, hd, v: 0 }); delete rover.tx; placeRover(); return true; }
+  function respawn() { if (driving) dismount(); player.reset(); player.vy = 0; }
+  return { interact, driving: () => driving, drive, dismount, setDoors, resetDoors, doorsState, roverPose, setRoverRemote, moveRover, respawn, update(dt) {
     nodes.forEach((n) => { // suplai habis muncul lagi di tempat acak (30-150 m dari pemain, jauh dari bangunan)
       if (n.t > 0 && (n.t -= dt) <= 0) {
         const p = player.obj.position, a = Math.random() * 6.283, d = 30 + Math.random() * 120, x = p.x + Math.sin(a) * d, z = p.z + Math.cos(a) * d;
@@ -1483,6 +1609,14 @@ function initPlay(scene, player, build, colony, ui) {
     for (let i = chips.length - 1; i >= 0; i--) {
       const m = chips[i], u = m.userData; u.l -= dt; u.v.y -= 9 * dt; m.position.addScaledVector(u.v, dt);
       if (u.l <= 0) { scene.remove(m); chips.splice(i, 1); }
+    }
+    if (medCd > 0) medCd -= dt;
+    if (rover && !driving && rover.tx !== undefined) { // rover dikendalikan pemain lain: ikuti posisinya dengan halus
+      const k = 1 - Math.exp(-dt * 10), dx = rover.tx - rover.x, dz = rover.tz - rover.z, far = Math.hypot(dx, dz) > 25;
+      rover.x += far ? dx : dx * k; rover.z += far ? dz : dz * k;
+      rover.hd += Math.atan2(Math.sin(rover.thd - rover.hd), Math.cos(rover.thd - rover.hd)) * k;
+      rover.g.userData.wheels.forEach((w) => { w.rotation.x += Math.hypot(dx, dz) * k / .5; });
+      placeRover();
     }
     cabG.visible = true; // area hijau teraliri selalu terlihat
     runMiners(dt);
@@ -1562,7 +1696,7 @@ async function requestJoin(info) {
   return window.MarsNet.join(info);
 }
 
-function initSave(ui, build, colony, player) {
+function initSave(ui, build, colony, player, play) {
   const KEY = 'mc_save', meta = { world: 'Dunia Utama', colony: 'Koloni Alpha', id: null, owner: 'local' };
   window.MarsWorldMeta = () => meta; // dibaca modul multiplayer (id dunia untuk membuka room)
   const newId = () => 'w_' + Math.random().toString(36).slice(2, 10);
@@ -1668,6 +1802,7 @@ function initSave(ui, build, colony, player) {
     googleButton.textContent = 'Firebase tidak tersedia';
   }
   function save(auto) {
+    if (VISIT.on) { if (!auto) ui.toast('Dunia host tidak disimpan di perangkatmu. Dunia pribadimu aman dan dipulihkan saat keluar room.'); return; }
     const p = player.obj.position;
     if (!meta.id) meta.id = newId();
     const d = { v: 2, t: Date.now(), meta, player: { x: p.x, y: p.y, z: p.z, yaw: player.yaw }, inv: build.inv(), items: build.serialize(), upg: UPG, bag, col: colony.state(), snd: SFX.on, extra: EXTRA.get() };
@@ -1689,6 +1824,24 @@ function initSave(ui, build, colony, player) {
     build.restore([], START.slice()); Object.keys(UPG).forEach((k) => delete UPG[k]); bag.food = 0;
     colony.load({ st: { o: 100, w: 100, e: 50, f: 100 }, level: 1 }); player.reset(); EXTRA.set(null);
   }
+  // Bertamu di dunia host: dunia pribadi disimpan ke memori (stash) dan TIDAK disentuh; dunia aktif = dunia host.
+  let stashD = null;
+  const blank = () => ({ v: 2, t: 0, meta: { world: 'Dunia Utama', colony: 'Koloni Alpha', id: null, owner: 'local' }, player: { x: 0, y: heightAt(0, 8), z: 8, yaw: 0 }, inv: START.slice(), items: [], upg: {}, bag: { food: 0 }, col: { st: { o: 100, w: 100, e: 50, f: 100, h: 100 }, level: 1 }, snd: SFX.on !== false, extra: null });
+  VISIT.begin = (hostName) => {
+    if (build.flying()) build.toggle();
+    stashD = read();
+    const own = stashD || blank();
+    load(Object.assign({}, own, { items: [], extra: Object.assign({}, own.extra, { rover: null }) })); // inventaris, tas, survival, slot tangan tetap milik sendiri
+    play.resetDoors(); colony.guest(true); VISIT.on = true;
+    document.querySelector('.tl b').textContent = 'Dunia ' + String(hostName || 'Host');
+  };
+  VISIT.end = () => {
+    if (!VISIT.on) return;
+    const own = stashD || blank(), cur = colony.info().st;
+    VISIT.on = false; colony.guest(false); build.shared.clear();
+    load(Object.assign({}, own, { inv: build.inv(), bag: { food: bag.food }, col: { level: own.col.level, st: Object.assign({}, own.col.st, { o: cur.o, f: cur.f, h: cur.h }) } })); // hasil kumpulan dibawa pulang
+    play.resetDoors(); stashD = null;
+  };
   const menu = () => { const d0 = read(); $('mCont').disabled = !d0; $('mWorldInfo').textContent = d0 && d0.meta ? `Dunia tersimpan: ${d0.meta.world} / ${d0.meta.colony}` : ''; $('mJoinF').hidden = true; $('mMain').hidden = false; $('mNewF').hidden = true; $('menu').hidden = false; $('pause').hidden = true; ui.paused = true; };
   let wl = null;
   const keepAwake = async () => { try { if (navigator.wakeLock && !wl) { wl = await navigator.wakeLock.request('screen'); wl.addEventListener('release', () => { wl = null; }); } } catch (e) {} };
@@ -1760,16 +1913,15 @@ function initSave(ui, build, colony, player) {
       list.appendChild(b);
     });
   };
-  $('mJoinGo').onclick = async () => { // gabung room: pemain tetap memainkan dunianya sendiri, save milik host tidak disentuh
+  $('mJoinGo').onclick = async () => { // gabung room: dunia aktif = dunia host (dunia pribadi tersimpan terpisah, tidak tertimpa)
     if (!found) return;
     const st = (m) => { showWorld(found, cloudUser && cloudUser.uid); $('mJRes').textContent += '\n\n' + m; };
-    const d = read();
-    if (!d) return st('Buat dunia sendiri dulu (Dunia baru), baru gabung ke room orang lain.');
     $('mJoinGo').disabled = true; st('Menghubungkan ke room...');
     const r = await requestJoin(found);
     $('mJoinGo').disabled = false;
     if (!r.ok) return st(r.message || 'Gagal bergabung.');
-    load(d); if (r.spawn && window.MarsNet && window.MarsNet.applySpawn) window.MarsNet.applySpawn(r.spawn); start(); ui.toast(`Bergabung ke room ${found.world} (${r.count}/4 pemain)`);
+    if (r.spawn && window.MarsNet && window.MarsNet.applySpawn) window.MarsNet.applySpawn(r.spawn);
+    start(); ui.toast(`Bergabung ke room ${found.world} (${r.count}/4 pemain)`);
   };
   $('sndBtn').onclick = $('mSnd').onclick = () => { SFX.on = !SFX.on; sound(); SFX('pick'); };
   $('saveBtn').onclick = () => save(false);
@@ -1780,7 +1932,7 @@ function initSave(ui, build, colony, player) {
 
 /* ===== MULTIPLAYER (Phase 3): Firebase Realtime Database, sinkronisasi posisi 2-4 pemain ===== */
 // Room = {ownerUid}_{worldId} (sama dengan ID dokumen publicWorlds). Host = pemilik dunia. Slot 0-3 di database membatasi 4 pemain lewat Rules.
-function initNet(ui, player, scene, build) {
+function initNet(ui, player, scene, build, play, colony) {
   const MAX = 4, SEND_MS = 200, FRESH_MS = 30000;
   const fb = window.MarsFirebase, rtdb = fb && fb.ready && fb.rtdb ? fb.rtdb : null;
   const S = { room: null, role: null, uid: null, sid: null, connId: null, refs: null, off: [], count: 0, sent: 0, beat: 0, last: null, offset: 0, busy: false, ready: false, errs: 0, sessionHeld: false, reconnecting: false };
@@ -1790,7 +1942,10 @@ function initNet(ui, player, scene, build) {
   const fail = (reason, message) => ({ ok: false, reason, message });
   const user = () => (fb && fb.auth.currentUser) || null;
   const pname = () => String((user() && user().displayName) || 'Pemain').slice(0, 40);
-  const label = () => { btn.textContent = S.room ? `${S.role === 'host' ? 'Tutup room' : 'Keluar room'} (${S.count}/${MAX})` : 'Room online: Buka'; };
+  const label = () => {
+    btn.textContent = S.room ? `${S.role === 'host' ? 'Tutup room' : 'Keluar room'} (${S.count}/${MAX})` : 'Room online: Buka';
+    const tg = $('netTag'); tg.hidden = !S.room; if (S.room) tg.textContent = `${S.role === 'host' ? 'Host' : 'Tamu'} ${S.count}/${MAX}`;
+  };
   const norm2 = (a) => Math.atan2(Math.sin(a), Math.cos(a));
   const playerVal = (role, sid) => { const p = player.obj.position; return { name: pname(), sid: sid || S.sid, x: +p.x.toFixed(2), y: +p.y.toFixed(2), z: +p.z.toFixed(2), ry: +norm2(player.obj.rotation.y).toFixed(2), t: TS(), host: (role || S.role) === 'host' }; };
   const safeId = () => { const raw = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)); return String(raw).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80); };
@@ -1808,71 +1963,16 @@ function initNet(ui, player, scene, build) {
     timer = setTimeout(() => finish(false), 8000);
   });
 
-  // ===== SINKRONISASI BASE + SPAWN GUEST =====
-  // Host menerbitkan bangunannya ke rooms/{roomId}/base (hanya pemilik room yang boleh menulis, lihat Rules).
-  // Guest hanya membaca dan menampilkan salinan visual + tabrakan; salinan TIDAK masuk build.items sehingga tidak pernah ikut tersimpan di save guest.
-  const BASE_MAX = 4000, BASE_MS = 400, BASE_WAIT_MS = 4000, SPAWN_WAIT_MS = 4000, HOST_FRESH_MS = 45000;
-  const R3 = (n) => Math.round(n * 1000) / 1000, sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const remote = (() => {
-    const g = new THREE.Group(), map = new Map(), E = .4;
-    let shapes = [], rects = [], ports = [], dirty = false, upg = {};
-    scene.add(g);
-    const sigOf = (b) => [b.k, b.x, b.z, b.lv, b.rot, b.sc, b.c].join('|');
-    const ins = (s, x, z, e) => s.c ? Math.hypot(x - s.x, z - s.z) < s.r + e : Math.abs(x - s.x) < s.hx + e && Math.abs(z - s.z) < s.hz + e;
-    function drop(e) {
-      g.remove(e.obj);
-      e.obj.traverse((o) => { if (o.isMesh && o.material) [].concat(o.material).forEach((m) => m.dispose()); }); // material milik objek ini; geometri dipakai bersama, tidak dibuang
-    }
-    function reconcile(items) { // samakan salinan dengan data server berdasarkan ID: tidak ada duplikat, bangunan lain tidak tersentuh
-      const seen = new Set(); let n = 0;
-      for (const key of Object.keys(items || {})) {
-        if (++n > BASE_MAX + 500) break;
-        const b = items[key];
-        if (!b || typeof b.k !== 'string' || ![b.x, b.z, b.lv, b.rot].every((v) => typeof v === 'number' && isFinite(v))) continue;
-        seen.add(key);
-        const sig = sigOf(b), old = map.get(key);
-        if (old && old.sig === sig) continue;
-        const v = build.view(b);
-        if (!v) { if (old) { drop(old); map.delete(key); dirty = true; } continue; } // tipe tidak dikenal versi game ini
-        if (old) drop(old);
-        g.add(v.obj); map.set(key, { sig, obj: v.obj, spec: v.spec, b }); dirty = true;
-      }
-      for (const [key, e] of map) if (!seen.has(key)) { drop(e); map.delete(key); dirty = true; }
-    }
-    function rebuild() { // aturan tabrakan sama dengan bangunan lokal (initPlay.syncDoors), pintu salinan selalu terbuka
-      shapes = []; rects = []; ports = []; dirty = false;
-      map.forEach((e) => {
-        const b = e.b, s = e.spec, r = b.rot % 2;
-        if (b.lv !== 0) return;
-        if (s.kind === 'mod') { shapes.push(...shapesOf(s, b.x, b.z, b.rot)); ports.push(...portsOf(s, b.x, b.z, b.rot)); }
-        else if (s.kind === 'edge') { if (['wall', 'window', 'glass'].includes(b.k)) rects.push({ x: b.x, z: b.z, hx: r ? .1 : 1, hz: r ? 1 : .1 }); }
-        else if (s.kind === 'free') { const q = s.parts[0]; rects.push({ x: b.x, z: b.z, hx: (r ? q[2] : q[0]) / 2, hz: (r ? q[0] : q[2]) / 2 }); }
-        else if (b.k === 'airlock') rects.push({ x: b.x, z: b.z, hx: 1, hz: 1 });
-        else if (b.k === 'pillar') rects.push({ x: b.x, z: b.z, hx: .15, hz: .15 });
-      });
-    }
-    function solid(x, z) {
-      if (!map.size) return false;
-      if (dirty) rebuild();
-      if (rects.some((r) => Math.abs(x - r.x) < r.hx + .35 && Math.abs(z - r.z) < r.hz + .35)) return true;
-      if (shapes.some((s) => ins(s, x, z, E)) && !shapes.some((s) => ins(s, x, z, -E)))
-        return !ports.some((q) => Math.abs((x - q.x) * q.dx + (z - q.z) * q.dz) < .8 && Math.abs((x - q.x) * q.dz - (z - q.z) * q.dx) < 1.1);
-      return false;
-    }
-    function occupied(x, z) { // titik di dalam atau dekat bangunan (dipakai memilih titik spawn)
-      if (!map.size) return false;
-      if (dirty) rebuild();
-      return rects.some((r) => Math.abs(x - r.x) < r.hx + 1.2 && Math.abs(z - r.z) < r.hz + 1.2) || shapes.some((s) => ins(s, x, z, 1.2));
-    }
-    return {
-      apply(v) { reconcile(v && v.items); upg = (v && v.upg) || {}; },
-      clear() { map.forEach(drop); map.clear(); dirty = true; upg = {}; },
-      solid, occupied, upgrades: () => upg,
-    };
-  })();
-
-  // Sisi host: bandingkan keadaan build.items dengan yang terakhir diterbitkan, kirim hanya selisihnya.
-  const nkeys = new WeakMap(); let kseq = 0, pub = new Map(), pubUpg = new Map(), pubBusy = false, baseErrs = 0, baseCapped = false;
+  // ===== DUNIA BERSAMA (shared world) =====
+  // Host = sumber tunggal: bangunan, stok fasilitas, pintu, rover, dan simulasi produksi diterbitkan ke rooms/{roomId}/base.
+  // Guest memuat dunia host sebagai dunia aktifnya (dunia pribadi guest disimpan terpisah dan dipulihkan saat keluar room), jadi semua
+  // objek memakai sistem interaksi yang sama dengan objek lokal. Permintaan guest ke stok bersama diproses host satu per satu.
+  const BASE_MAX = 4000, BASE_MS = 400, FAC_MS = 1000, SIM_MS = 2000, ROVER_MS = 120, BASE_WAIT_MS = 4000, SPAWN_WAIT_MS = 4000, HOST_FRESH_MS = 45000, RPC_WAIT_MS = 5000, NEAR_MAX = 8;
+  const R1 = (n) => Math.round(n * 10) / 10, R2 = (n) => Math.round(n * 100) / 100, R3 = (n) => Math.round(n * 1000) / 1000, sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const FACT = ['tank', 'crate', 'green', 'miner'];
+  const nkeys = new WeakMap(); let kseq = 0, keymap = new Map(), pub = new Map(), pubUpg = new Map(), pubFac = new Map(), pubSim = '', pubRover = '';
+  let pubBusy = false, facBusy = false, baseErrs = 0, baseCapped = false, roverDrv = '', wasDriving = false, rpcWait = null, facCache = new Map(), claiming = false, goneN = 0, staleN = 0;
+  const doneReq = new Map();
   const keyOf = (it) => { let k = nkeys.get(it); if (!k) { k = 'b' + (++kseq).toString(36) + Math.random().toString(36).slice(2, 6); nkeys.set(it, k); } return k; };
   const baseRec = (it) => {
     const r = { k: String(it.type), x: R3(it.x), z: R3(it.z), lv: it.lv | 0, rot: (it.rot | 0) & 3, sc: R3(Number.isFinite(it.scale) && it.scale > 0 ? it.scale : 1) };
@@ -1882,23 +1982,39 @@ function initNet(ui, player, scene, build) {
   function collect() { // bangunan yang sedang dibawa (mode Pindah) tetap dihitung di posisi lamanya sampai ditempatkan
     const list = build.items.slice(), c = build.carried();
     if (c && !list.includes(c)) list.push(c);
-    const out = new Map();
-    for (const it of list) { if (out.size >= BASE_MAX) { baseCapped = true; break; } out.set(keyOf(it), baseRec(it)); }
+    const out = new Map(); keymap = new Map();
+    for (const it of list) { if (out.size >= BASE_MAX) { baseCapped = true; break; } const k = keyOf(it); keymap.set(k, it); out.set(k, baseRec(it)); }
     return out;
   }
   function collectUpg() { const o = {}; for (const k of Object.keys(UPG)) { const v = Math.floor(+UPG[k]); if (/^[A-Za-z0-9_]{1,24}$/.test(k) && v > 0) o[k] = Math.min(v, 2); } return o; }
-  async function publishBase(bref) { // snapshot penuh, satu penulisan atomik: guest tidak pernah melihat data setengah jadi
+  const facRec = (it) => { // stok fasilitas bersama: air tangki, makanan greenhouse, isi kontainer, hasil mesin tambang
+    const s = it.store; if (!s || !FACT.includes(it.type)) return null;
+    if (it.type === 'tank') return { w: R1(Math.max(0, s.w || 0)) };
+    if (it.type === 'green') return { f: R1(Math.max(0, s.f || 0)) };
+    const r = { m: [0, 1, 2, 3, 4].map((i) => Math.max(0, Math.floor((s.m && s.m[i]) || 0))) };
+    if (it.type === 'miner' && typeof s.nt === 'string' && /^[a-z]{1,10}$/.test(s.nt)) r.nt = s.nt;
+    return r;
+  };
+  function collectFac() { const out = new Map(); keymap.forEach((it, k) => { const r = facRec(it); if (r) out.set(k, r); }); return out; }
+  const facMap = (fac) => new Map([...fac].map(([k, r]) => [k, JSON.stringify(r)]));
+
+  // ---- sisi HOST: terbitkan snapshot penuh sekali, lalu hanya selisih ----
+  async function publishBase(bref) { // satu penulisan atomik: guest tidak pernah melihat data setengah jadi
     baseCapped = false; baseErrs = 0;
-    const cur = collect(), up = collectUpg(), items = {}, sigs = new Map();
+    const cur = collect(), up = collectUpg(), fac = collectFac(), items = {}, facO = {}, sigs = new Map();
     cur.forEach((r, k) => { items[k] = r; sigs.set(k, JSON.stringify(r)); });
-    const val = { t: TS(), items };
+    fac.forEach((r, k) => { facO[k] = r; });
+    const sim = colony.sim(), val = { t: TS(), items, sim }, dr = play.doorsState(), rp = play.roverPose();
     if (Object.keys(up).length) val.upg = up;
+    if (Object.keys(facO).length) val.fac = facO;
+    if (Object.keys(dr).length) val.doors = dr;
+    if (rp) val.rover = { x: R2(rp.x), z: R2(rp.z), hd: R2(norm2(rp.hd)), d: '' };
     try { await bref.set(val); } catch (e) {
       console.warn('Mars Colony gagal menerbitkan Base:', e);
       ui.toast('Bangunan belum bisa dibagikan ke room (Rules database belum diperbarui?). Room tetap terbuka.');
       return false;
     }
-    pub = sigs; pubUpg = new Map(Object.entries(up));
+    pub = sigs; pubUpg = new Map(Object.entries(up)); pubFac = facMap(fac); pubSim = JSON.stringify(sim); pubRover = val.rover ? JSON.stringify(val.rover) : '';
     if (baseCapped) ui.toast(`Base punya lebih dari ${BASE_MAX} komponen; hanya ${BASE_MAX} pertama yang dibagikan.`);
     return true;
   }
@@ -1921,19 +2037,203 @@ function initNet(ui, player, scene, build) {
     while (pubBusy && Date.now() - t0 < 2000) await sleep(80);
     await syncBase(bref, cur, up);
   }
+  async function syncFac(bref) {
+    if (facBusy) return;
+    collect();
+    const fac = collectFac(), upd = {};
+    fac.forEach((r, k) => { if (pubFac.get(k) !== JSON.stringify(r)) upd['fac/' + k] = r; });
+    pubFac.forEach((s, k) => { if (!fac.has(k)) upd['fac/' + k] = null; });
+    if (!Object.keys(upd).length) return;
+    facBusy = true;
+    try { await bref.update(upd); pubFac = facMap(fac); } catch (e) { console.warn('Mars Colony sinkronisasi fasilitas gagal:', e); } finally { facBusy = false; }
+  }
+  async function syncSim(bref) {
+    const s = colony.sim(), j = JSON.stringify(s);
+    if (j === pubSim) return;
+    try { await bref.child('sim').set(s); pubSim = j; } catch (e) { console.warn('Mars Colony sinkronisasi simulasi gagal:', e); }
+  }
+  const present = async (uid) => (await S.refs.base.child('presence').child(uid).once('value')).exists();
+  async function hostChecks(bref) { // pengemudi terputus: rover dilepas setelah 3 pemeriksaan berturut-turut (~6 dtk), jadi blip jaringan/reconnect tidak mencabut kendali
+    if (!roverDrv || roverDrv === S.uid) { goneN = 0; return; }
+    try {
+      if (await present(roverDrv)) { goneN = 0; return; }
+      if (++goneN < 3) return;
+      goneN = 0; const gone = roverDrv;
+      roverRef(bref).child('d').transaction((cur) => (cur === gone ? '' : undefined)).catch(onErr); // atomik: hanya bila pemegang klaim masih orang yang sama
+    } catch (e) { onErr(e); }
+  }
 
-  // Sisi guest: muat Base (tunggu data awal), pasang pendengar real-time.
-  function loadRemoteBase(bref) {
+  // ---- rover bersama: klaim ATOMIK lewat transaksi pada rover/d; hanya pemegang klaim yang menulis pose, yang lain mengikuti ----
+  const roverRef = (bref) => bref.child('rover');
+  const poseOf = () => { const p = play.roverPose(); return p ? { x: R2(p.x), z: R2(p.z), hd: R2(norm2(p.hd)) } : null; };
+  async function claimRover(staleUid) { // d kosong -> UID saya. Dua pemain menekan bersamaan: tepat satu yang menang.
+    const bref = S.refs.bref, me = S.uid; claiming = true;
+    try {
+      const p = play.roverPose(); if (!p) return { ok: false, msg: 'Rover belum dirakit' };
+      const pp = player.obj.position; if (Math.hypot(pp.x - p.x, pp.z - p.z) > NEAR_MAX) return { ok: false, msg: 'Terlalu jauh dari rover' };
+      const res = await roverRef(bref).child('d').transaction((cur) => (cur === null || cur === '' || cur === me || (staleUid && cur === staleUid) ? me : undefined));
+      if (res.committed && res.snapshot.val() === me) { roverDrv = me; return { ok: true }; }
+      return { ok: false, msg: res.snapshot.val() ? 'Rover sedang dipakai pemain lain' : 'Rover belum tersedia' };
+    } catch (e) { console.warn('Mars Colony klaim rover gagal:', e); return { ok: false, msg: 'Rover belum tersedia atau koneksi bermasalah' }; }
+    finally { setTimeout(() => { claiming = false; }, 300); } // jeda singkat: event lokal dari penulisan sendiri tidak dianggap klaim usang
+  }
+  const releaseRover = (bref, uid) => roverRef(bref).child('d').set('').catch((e) => console.warn('Mars Colony gagal melepas rover:', e)); // Rules: hanya pemegang klaim yang boleh mengosongkan d
+  function sendPose(bref) { // pemegang klaim: update parsial, tidak pernah menyentuh d
+    const v = poseOf(); if (!v) return; const j = JSON.stringify(v);
+    if (j === pubRover) return;
+    pubRover = j;
+    roverRef(bref).update(v).catch((e) => { pubRover = ''; console.warn('Mars Colony gagal mengirim pose rover:', e); });
+  }
+  function idleRover(bref) { // host: terbitkan pose rover yang diam; transaksi memastikan klaim pemain lain tidak pernah tertimpa
+    const v = poseOf(); if (!v) return Promise.resolve();
+    const j = JSON.stringify(v); if (j === pubRover) return Promise.resolve();
+    pubRover = j;
+    return roverRef(bref).transaction((cur) => (!cur ? Object.assign({ d: '' }, v) : (!cur.d ? Object.assign({}, cur, v) : undefined)))
+      .then((r) => { if (!r.committed) pubRover = ''; }).catch((e) => { pubRover = ''; console.warn('Mars Colony gagal menerbitkan rover:', e); });
+  }
+  function roverTick(bref) {
+    if (play.driving()) { wasDriving = true; if (roverDrv === S.uid) sendPose(bref); return; }
+    if (wasDriving) { wasDriving = false; if (roverDrv === S.uid) { sendPose(bref); releaseRover(bref, S.uid); } return; } // turun: pose terakhir lalu lepas klaim
+    if (!claiming && roverDrv === S.uid) { if (++staleN >= 3) { staleN = 0; releaseRover(bref, S.uid); } return; } // klaim usang milik UID sendiri (mis. halaman dimuat ulang): lepas setelah ~0,4 dtk
+    staleN = 0;
+    if (S.role === 'host' && (!roverDrv || roverDrv === S.uid)) idleRover(bref); // rover diam yang baru dirakit/dipindah host
+  }
+  const onRover = (s) => {
+    const v = s.val();
+    roverDrv = v && typeof v.d === 'string' ? v.d : '';
+    if (!v) { if (S.role === 'guest') play.setRoverRemote(null); return; }
+    if (!claiming && S.refs) {
+      if (play.driving() && roverDrv !== S.uid) { play.dismount(); wasDriving = false; ui.toast('Kendali rover dilepas (koneksi terputus atau diambil host)'); } // klaim hilang: turun, tidak mengemudi tanpa izin
+      else if (!play.driving() && roverDrv === S.uid) releaseRover(S.refs.bref, S.uid); // klaim usang milik UID sendiri (mis. halaman dimuat ulang)
+    }
+    if (play.driving()) return;
+    if (S.role === 'host' && (!roverDrv || roverDrv === S.uid)) return;
+    play.setRoverRemote({ x: v.x, z: v.z, hd: v.hd });
+  };
+  build.hooks.roverBusy = () => !!(S.room && roverDrv && roverDrv !== S.uid);
+  build.hooks.roverBoard = () => { // null = bukan di room (perilaku lama); host dan guest memakai klaim atomik yang sama
+    if (!S.room || !S.ready) return null;
+    return (async () => {
+      let stale = '';
+      if (S.role === 'host') {
+        if (roverDrv && roverDrv !== S.uid && !(await present(roverDrv))) stale = roverDrv; // pengemudi lama sudah terputus: host boleh mengambil
+        await idleRover(S.refs.bref); // pastikan node rover sudah ada sebelum diklaim
+      }
+      return claimRover(stale);
+    })();
+  };
+  build.hooks.roverCall = () => {
+    if (!S.room || !S.ready || S.role !== 'guest') return null;
+    const p = player.obj.position, a = player.obj.rotation.y;
+    return rpc({ a: 'call', x: R2(p.x + Math.sin(a) * 4.5), z: R2(p.z + Math.cos(a) * 4.5), hd: R2(norm2(a)) });
+  };
+
+  // ---- pintu bersama: siapa pun di room boleh membuka/menutup ----
+  build.hooks.doorChanged = (d, open) => {
+    if (!S.room || !S.refs) return;
+    const r = S.refs.bref.child('doors').child(d);
+    (open ? r.set(true) : r.remove()).catch(onErr);
+  };
+  const onDoors = (s) => play.setDoors(s.val() || {});
+
+  // ---- RPC guest -> host untuk stok bersama (host penulis tunggal, jadi tidak ada duplikasi) ----
+  function rpc(req) {
+    if (!S.room || S.role !== 'guest' || !S.refs) return Promise.resolve({ ok: false, msg: 'Tidak sedang berada di room' });
+    if (rpcWait) return Promise.resolve({ ok: false, msg: 'Permintaan sebelumnya masih diproses' });
+    const id = safeId().slice(0, 24);
     return new Promise((resolve) => {
-      let got = false, timer = null, off = () => {};
-      const done = (ok) => { if (timer) { clearTimeout(timer); timer = null; resolve({ ok, off }); } };
-      const handler = (s) => { const v = s.val(); if (!v && !got) return; got = true; remote.apply(v || {}); done(true); };
-      bref.on('value', handler, (e) => { console.warn('Mars Colony gagal membaca bangunan room:', e); done(false); });
-      off = () => bref.off('value', handler);
-      timer = setTimeout(() => done(false), BASE_WAIT_MS);
+      const done = (res) => { if (!rpcWait || rpcWait.id !== id) return; clearTimeout(rpcWait.t); rpcWait = null; resolve(res); };
+      rpcWait = { id, done, t: setTimeout(() => done({ ok: false, msg: 'Host tidak merespons' }), RPC_WAIT_MS) };
+      S.refs.bref.child('req').child(S.uid).set(Object.assign({ id, t: TS() }, req)).catch((e) => { onErr(e); done({ ok: false, msg: 'Permintaan ditolak server' }); });
     });
   }
-  async function findSpawn(playersRef, info, uid) { // titik di sekitar host: di atas tanah, tidak menumpuk pemain atau bangunan
+  build.hooks.rpc = rpc;
+  async function serveReq(uid, v) {
+    const a = v.a, br = S.refs.bref, av = avatars.get(uid);
+    if (a === 'call') { // pindahkan rover ke pemanggil, hanya bila rover bebas (transaksi atomik)
+      const p = play.roverPose();
+      if (!p) return { ok: false, msg: 'Rover belum dirakit' };
+      if (play.driving()) return { ok: false, msg: 'Rover sedang dipakai host' };
+      if (!av || ![v.x, v.z, v.hd].every(Number.isFinite) || Math.hypot(av.tx - v.x, av.tz - v.z) > 12) return { ok: false, msg: 'Lokasi panggilan tidak valid' };
+      const nv = { x: R2(v.x), z: R2(v.z), hd: R2(v.hd) };
+      const tr = await roverRef(br).transaction((cur) => (cur && !cur.d ? Object.assign({}, cur, nv) : undefined));
+      if (!tr.committed) return { ok: false, msg: 'Rover sedang dipakai pemain lain' };
+      play.moveRover(nv.x, nv.z, nv.hd); pubRover = JSON.stringify(nv);
+      return { ok: true };
+    }
+    const it = keymap.get(String(v.k));
+    if (!it || !FACT.includes(it.type) || it.type !== a) return { ok: false, msg: 'Fasilitas tidak ditemukan' };
+    if (!av || Math.hypot(av.tx - it.x, av.tz - it.z) > NEAR_MAX) return { ok: false, msg: 'Terlalu jauh dari fasilitas' };
+    const dep = a === 'crate' && v.dep ? [0, 1, 2, 3, 4].map((i) => Math.max(0, Math.min(99999, Math.floor(+v.dep[i] || 0)))) : null;
+    return build.hooks.serve(it, { a, dep });
+  }
+  const onReq = async (s) => {
+    const uid = s.key, v = s.val();
+    if (S.role !== 'host' || !S.refs || !v || typeof v.id !== 'string' || doneReq.get(uid) === v.id) return;
+    doneReq.set(uid, v.id);
+    if (Math.abs(nowS() - (+v.t || 0)) > 15000) return; // permintaan basi
+    const br = S.refs.bref; let res;
+    try { res = await serveReq(uid, v); } catch (e) { console.warn('Mars Colony gagal melayani permintaan:', e); res = { ok: false, msg: 'Kesalahan di host' }; }
+    br.child('res').child(uid).set(Object.assign({ id: v.id, t: TS() }, res)).catch(onErr);
+    syncFac(br); // stok yang baru berubah langsung diterbitkan
+  };
+  function attachHost(bref) {
+    const on = (ref, ev, fn) => { ref.on(ev, fn, (e) => onErr(e)); S.off.push(() => ref.off(ev, fn)); };
+    on(bref.child('req'), 'child_added', onReq); on(bref.child('req'), 'child_changed', onReq);
+    on(bref.child('doors'), 'value', onDoors); on(bref.child('rover'), 'value', onRover);
+  }
+  function tickWorld(dt) { // dipanggil tiap frame saat tidak dijeda
+    const br = S.refs.bref, ms = dt * 1000;
+    if ((S.racc += ms) >= ROVER_MS) { S.racc = 0; roverTick(br); }
+    if (S.role !== 'host' || !S.baseOk) return;
+    S.bacc += ms; S.facc += ms; S.sacc += ms;
+    if (S.bacc >= BASE_MS) { S.bacc = 0; syncBase(br); }
+    if (S.facc >= FAC_MS) { S.facc = 0; syncFac(br); }
+    if (S.sacc >= SIM_MS) { S.sacc = 0; syncSim(br); hostChecks(br); }
+  }
+
+  // ---- sisi GUEST: muat dunia host, lalu ikuti perubahan real-time ----
+  const facToStore = (r) => { const s = {}; if (typeof r.w === 'number') s.w = r.w; if (typeof r.f === 'number') s.f = r.f; if (r.m) s.m = [0, 1, 2, 3, 4].map((i) => +r.m[i] || 0); if (typeof r.nt === 'string') s.nt = r.nt; return s; };
+  const applyFac = () => facCache.forEach((r, k) => { const it = build.shared.item(k); if (it) it.store = facToStore(r); });
+  const setUpg = (u) => { Object.keys(UPG).forEach((k) => delete UPG[k]); Object.assign(UPG, u || {}); };
+  function applyWorld(v) {
+    build.shared.apply((v && v.items) || {});
+    setUpg(v && v.upg);
+    facCache = new Map(Object.entries((v && v.fac) || {})); applyFac();
+    play.setDoors((v && v.doors) || {});
+    colony.simulate(v && v.sim);
+    const r = v && v.rover; roverDrv = r && typeof r.d === 'string' ? r.d : '';
+    play.setRoverRemote(r ? { x: r.x, z: r.z, hd: r.hd } : null);
+  }
+  function attachGuest(bref, uid, offs) {
+    const sub = (ref, fn) => { ref.on('value', fn, (e) => onErr(e)); offs.push(() => ref.off('value', fn)); };
+    sub(bref.child('items'), (s) => { build.shared.apply(s.val() || {}); applyFac(); });
+    sub(bref.child('fac'), (s) => { facCache = new Map(Object.entries(s.val() || {})); applyFac(); });
+    sub(bref.child('upg'), (s) => setUpg(s.val()));
+    sub(bref.child('sim'), (s) => colony.simulate(s.val()));
+    sub(bref.child('doors'), onDoors);
+    sub(bref.child('rover'), onRover);
+    sub(bref.child('res').child(uid), (s) => { const v = s.val(); if (v && rpcWait && v.id === rpcWait.id) rpcWait.done(v); });
+  }
+  async function waitBase(bref) { // tunggu snapshot dunia host (ada penanda t) maksimal BASE_WAIT_MS
+    const t0 = Date.now();
+    for (;;) {
+      try { const v = (await bref.once('value')).val(); if (v && v.t) return v; } catch (e) { console.warn('Mars Colony gagal membaca dunia host:', e); }
+      if (Date.now() - t0 >= BASE_WAIT_MS) return null;
+      await sleep(400);
+    }
+  }
+
+  // ---- spawn guest di dekat host ----
+  const occupiedAt = (x, z) => build.items.some((it) => { // titik di dalam atau dekat bangunan
+    if (it.lv !== 0) return false;
+    const s = it.spec, r = it.rot % 2;
+    if (s.kind === 'mod') return shapesOf(s, it.x, it.z, it.rot).some((q) => (q.c ? Math.hypot(x - q.x, z - q.z) < q.r + 1.2 : Math.abs(x - q.x) < q.hx + 1.2 && Math.abs(z - q.z) < q.hz + 1.2));
+    if (s.kind === 'edge') return ['wall', 'window', 'glass'].includes(it.type) && Math.abs(x - it.x) < (r ? .1 : 1) + 1.2 && Math.abs(z - it.z) < (r ? 1 : .1) + 1.2;
+    if (s.kind === 'free') { const q = s.parts[0]; return Math.abs(x - it.x) < (r ? q[2] : q[0]) / 2 + 1.2 && Math.abs(z - it.z) < (r ? q[0] : q[2]) / 2 + 1.2; }
+    return it.type === 'airlock' && Math.abs(x - it.x) < 2.2 && Math.abs(z - it.z) < 2.2;
+  });
+  async function findSpawn(playersRef, info, uid) {
     const t0 = Date.now(); let host = null, all = {};
     for (;;) {
       try {
@@ -1950,7 +2250,7 @@ function initNet(ui, player, scene, build) {
     const mk = (x, z) => ({ x, z, y: heightAt(x, z), yaw: Math.atan2(-(host.x - x), -(host.z - z)), ry: Math.atan2(host.x - x, host.z - z) });
     for (const r of [3.5, 5, 6.5, 8, 10, 12.5, 15]) for (let k = 0; k < 12; k++) {
       const a = a0 + k * Math.PI / 6, x = host.x + Math.sin(a) * r, z = host.z + Math.cos(a) * r;
-      if (!remote.occupied(x, z) && others.every((p) => Math.hypot(p.x - x, p.z - z) >= 2)) return mk(x, z);
+      if (!occupiedAt(x, z) && others.every((p) => Math.hypot(p.x - x, p.z - z) >= 2)) return mk(x, z);
     }
     return mk(host.x + Math.sin(a0) * 2.2, host.z + Math.cos(a0) * 2.2); // semua titik terisi: tetap tidak menumpuk dengan host
   }
@@ -2020,7 +2320,7 @@ function initNet(ui, player, scene, build) {
     const base = rtdb.ref('rooms/' + roomId), metaRef = base.child('meta'), playersRef = base.child('players'), slotsRef = base.child('slots');
     const sessionRef = rtdb.ref('activeSessions/' + u.uid);
     const presenceRef = base.child('presence').child(u.uid).child(sid).child(connId);
-    let slotRef = null, presenceRegistered = false, sessionHeld = false, metaCreated = false, hostInfo = null, baseOff = null, spawn = null, baseOk = false;
+    let slotRef = null, presenceRegistered = false, sessionHeld = false, metaCreated = false, hostInfo = null, offs = [], spawn = null, baseOk = false, baseSnap = null, visitStarted = false;
     try {
       if (!(await connected())) return fail('OFFLINE', 'Tidak bisa terhubung ke server. Periksa internet.');
       S.offset = (await rtdb.ref('.info/serverTimeOffset').once('value')).val() || 0;
@@ -2036,6 +2336,8 @@ function initNet(ui, player, scene, build) {
         const hostPresence = await base.child('presence').child(meta.hostUid).child(meta.hostSid).once('value');
         if (!hostPresence.exists()) return fail('HOST_OFFLINE', 'Host sedang tidak terhubung.');
         hostInfo = meta;
+        baseSnap = await waitBase(base.child('base')); // dunia host harus sudah diterbitkan sebelum guest ikut masuk
+        if (!baseSnap) return fail('NO_BASE', 'Dunia host belum dibagikan. Minta host membuka ulang room (dan pastikan Rules terbaru terpasang).');
       }
 
       // Cek lebih awal: kalau akun ini masih punya sesi lain yang hidup, beri pesan yang jelas (Rules tetap penjaga utama).
@@ -2106,17 +2408,19 @@ function initNet(ui, player, scene, build) {
         return fail('FULL', `Room penuh (${MAX}/${MAX} pemain).`);
       }
       slotRef = slotsRef.child(String(slot));
-      if (role === 'guest' && hostInfo) { // urutan: muat Base host, tentukan titik spawn dekat host, baru kirim posisi awal ke database
-        const bl = await loadRemoteBase(base.child('base'));
-        baseOff = bl.off;
-        if (!bl.ok) ui.toast('Data bangunan host belum tersedia. Bangunan akan muncul otomatis begitu host mengirimnya.');
+      if (role === 'guest' && hostInfo) { // urutan: ganti ke dunia host, muat seluruh isinya, pasang pendengar, tentukan spawn, baru kirim posisi awal
+        VISIT.begin(hostInfo.hostName); visitStarted = true;
+        applyWorld(baseSnap);
+        attachGuest(base.child('base'), u.uid, offs);
         spawn = await findSpawn(playersRef, hostInfo, u.uid);
         if (spawn) applySpawn(spawn);
       }
       await playersRef.child(u.uid).set(playerVal(role, sid));
 
-      Object.assign(S, { room: roomId, role, uid: u.uid, sid, connId, refs: { base, meta: metaRef, players: playersRef, slots: slotsRef, player: playersRef.child(u.uid), slot: slotRef, session: sessionRef, presence: presenceRef, bref: base.child('base') }, sessionHeld: true, baseOk, bacc: 0, count: 1, last: null, errs: 0, beat: performance.now(), sent: 0 });
-      if (baseOff) { S.off.push(baseOff); baseOff = null; }
+      Object.assign(S, { room: roomId, role, uid: u.uid, sid, connId, refs: { base, meta: metaRef, players: playersRef, slots: slotsRef, player: playersRef.child(u.uid), slot: slotRef, session: sessionRef, presence: presenceRef, bref: base.child('base') }, sessionHeld: true, baseOk, bacc: 0, facc: 0, sacc: 0, racc: 0, count: 1, last: null, errs: 0, beat: performance.now(), sent: 0 });
+      offs.forEach((f) => S.off.push(f)); offs = [];
+      wasDriving = false; claiming = false; goneN = 0; staleN = 0; doneReq.clear(); // roverDrv sengaja tidak direset: snapshot awal guest sudah mengisinya (leave() yang mengosongkan)
+      if (role === 'host') attachHost(base.child('base'));
       const on = (ref, ev, fn) => { ref.on(ev, fn, (e) => onErr(e)); S.off.push(() => ref.off(ev, fn)); };
       on(playersRef, 'child_added', onPlayer); on(playersRef, 'child_changed', onPlayer); on(playersRef, 'child_removed', (s) => removeAvatar(s.key));
       on(slotsRef, 'value', (s) => { S.count = Object.keys(s.val() || {}).length; label(); });
@@ -2146,8 +2450,8 @@ function initNet(ui, player, scene, build) {
     } catch (e) {
       console.error('Mars Colony multiplayer error:', e);
       const denied = /PERMISSION_DENIED/i.test(String((e && (e.code || e.message)) || ''));
-      if (baseOff) { baseOff(); baseOff = null; }
-      remote.clear();
+      offs.forEach((f) => { try { f(); } catch (x) {} }); offs = [];
+      if (visitStarted) { build.shared.clear(); VISIT.end(); }
       // Presence dihapus lebih dulu agar Rules mengizinkan pembersihan node milik sesi ini.
       try {
         if (presenceRegistered) { await presenceRef.onDisconnect().cancel().catch(() => {}); await presenceRef.remove().catch(() => {}); }
@@ -2165,11 +2469,17 @@ function initNet(ui, player, scene, build) {
   async function leave(msg, cleanupServer = true) {
     if (!S.room) return;
     const r = S.refs, role = S.role, uid = S.uid, sid = S.sid, heldSession = S.sessionHeld;
+    if (play.driving()) play.dismount(); // turun dari rover sebelum dunia diganti
+    const holdRover = r && r.bref && roverDrv === uid ? r.bref : null, relRover = holdRover ? releaseRover(holdRover, uid) : null; // klaim rover dilepas sebelum listener dicabut
+    if (VISIT.on) { build.shared.clear(); VISIT.end(); } // kembali ke dunia pribadi saat itu juga
+    if (rpcWait) rpcWait.done({ ok: false, msg: 'Keluar dari room' });
+    roverDrv = ''; wasDriving = false; claiming = false; goneN = 0;
     const flush = role === 'host' && S.baseOk && r && r.bref ? flushBase(r.bref) : null; // selisih terakhir diambil sekarang, dikirim sebelum presence dihapus
     S.off.forEach((f) => f()); S.off = []; S.room = null; S.refs = null; S.role = null; S.uid = null; S.sid = null; S.connId = null; S.ready = false; S.count = 0; S.sessionHeld = false; S.baseOk = false;
-    [...avatars.keys()].forEach(removeAvatar); remote.clear(); label();
+    [...avatars.keys()].forEach(removeAvatar); label();
     if (cleanupServer && r) try {
       if (flush) await Promise.race([flush, sleep(3500)]).catch(() => {});
+      if (relRover) await Promise.race([relRover, sleep(2500)]).catch(() => {});
       // Hapus presence unik lebih dulu. Pointer global hanya dihapus bila masih menunjuk SID ini.
       await r.presence.onDisconnect().cancel().catch(() => {});
       await r.presence.remove();
@@ -2239,9 +2549,9 @@ function initNet(ui, player, scene, build) {
   }
   label();
   const api = {
-    join, leave, active: () => !!S.room, solid: (x, z) => remote.solid(x, z), applySpawn, hostUpgrades: () => remote.upgrades(),
+    join, leave, active: () => !!S.room, applySpawn,
     update(dt) { // dipanggil hanya saat game tidak dijeda
-      if (S.room && S.ready && S.role === 'host' && S.baseOk && S.refs && !S.reconnecting && (S.bacc += dt * 1000) >= BASE_MS) { S.bacc = 0; syncBase(S.refs.bref); }
+      if (S.room && S.ready && S.refs && !S.reconnecting) tickWorld(dt);
       if (S.room && S.ready && S.refs) { S.sent += dt * 1000; if (S.sent >= SEND_MS) { S.sent = 0; send(false); } }
       if (!avatars.size) return;
       const k = 1 - Math.exp(-dt * 10);
@@ -2310,9 +2620,9 @@ input.onAction = (a) => {
 const build = initBuilding(scene, camera, player, ui, world);
 const colony = initColony(build, ui);
 const play = initPlay(scene, player, build, colony, ui);
-const sv = initSave(ui, build, colony, player);
-const net = initNet(ui, player, scene, build);
-{ const localSolid = player.solid; player.solid = (x, z) => (localSolid ? localSolid(x, z) : false) || net.solid(x, z); } // tabrakan: bangunan sendiri + salinan bangunan host
+build.hooks.locked = () => VISIT.on; build.hooks.guest = () => VISIT.on; colony.onFaint(() => play.respawn());
+const sv = initSave(ui, build, colony, player, play);
+const net = initNet(ui, player, scene, build, play, colony);
 const clock = new THREE.Clock();
 let lastStep = 0;
 const perf = { t0: performance.now(), n: 0 };
