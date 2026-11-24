@@ -104,6 +104,19 @@ body.building #hotbar{display:none}
 .nd.big{font-size:13px;padding:2px 0 7px}.nd.big b{font-weight:700;font-size:15px}.nd.big i{height:4px}
 .nd:not(.big) span{opacity:.75}
 .nd.low b,.nd.low span{color:#ff8a6b}
+/* ===== Polesan visual: vignette, transisi, efek holografik ===== */
+#hud::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 46%,rgba(0,0,0,0) 58%,rgba(32,10,4,.34) 100%)}
+#c{animation:cIn 1.4s ease-out both}
+@keyframes cIn{from{opacity:0}to{opacity:1}}
+@keyframes cardIn{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+.card{animation:cardIn .35s ease-out both;background:linear-gradient(180deg,rgba(14,24,26,.76),rgba(8,14,16,.68));box-shadow:0 0 28px rgba(94,230,208,.10),inset 0 0 22px rgba(94,230,208,.05)}
+h1{text-shadow:0 0 18px rgba(94,230,208,.45)}
+h1::after{content:"";display:block;height:1px;margin:10px auto 4px;width:62%;background:linear-gradient(90deg,transparent,var(--ac),transparent)}
+.panel{box-shadow:0 0 14px rgba(94,230,208,.08),inset 0 0 12px rgba(94,230,208,.04)}
+.round{box-shadow:0 0 12px rgba(94,230,208,.18),inset 0 0 10px rgba(94,230,208,.10);transition:background .15s,color .15s}
+.card button{transition:background .15s,box-shadow .15s}
+@media (hover:hover){.card button:not(:disabled):hover{box-shadow:0 0 12px rgba(94,230,208,.35)}}
+@media (prefers-reduced-motion:reduce){.card,#c{animation:none}}
 </style>
 </head>
 <body>
@@ -123,7 +136,6 @@ body.building #hotbar{display:none}
 </div>
 <div id="pause"><div class="card">
   <h1>MARS COLONY</h1>
-  <p class="sub">Prototype 1.3, Phase 6d + Firebase Phase 3</p>
   <button id="resume">Mulai</button>
   <button id="quality"></button>
   <button id="reset">Reset posisi</button>
@@ -140,7 +152,7 @@ body.building #hotbar{display:none}
 <div class="modal" id="bag" hidden><div class="card bagcard"><div class="bagtop"><h2>Tas</h2><button id="bagX">Tutup</button></div><div id="bagTools"></div></div></div>
 <div class="modal" id="wb" hidden><div class="card"><h2>Workbench</h2><p class="sub">Upgrade peralatan. Blueprint bangunan menyusul.</p><div id="wbList" style="display:flex;flex-direction:column;gap:8px"></div><button id="wbX">Tutup</button></div></div>
 <div class="modal" id="menu" style="z-index:8;background:rgba(6,10,12,.88)"><div class="card">
-  <h1>MARS COLONY</h1><p class="sub">Prototype 0.9, Phase 6d</p><p class="sub" id="mWorldInfo"></p>
+  <h1>MARS COLONY</h1><p class="sub" id="mWorldInfo"></p>
   <div class="col" id="mMain"><button id="mCont">Lanjutkan</button><button id="mNew">Dunia baru</button><button id="mJoin">Gabung dunia</button><button id="mSet"></button><button id="mSnd"></button><button id="mGoogle">Login Google</button></div>
   <div class="col" id="mNewF" hidden><input id="mWorld" placeholder="Nama dunia" maxlength="24"><input id="mCol" placeholder="Nama koloni" maxlength="24"><button id="mGo">Mulai</button><button id="mBack">Kembali</button></div>
   <div class="col" id="mJoinF" hidden><input id="mJW" placeholder="Nama dunia" maxlength="24"><input id="mJC" placeholder="Nama koloni" maxlength="24"><button id="mFind">Cari dunia</button><div id="mJRes"></div><div class="col" id="mJList"></div><button id="mJoinGo" hidden>Gabung room</button><button id="mJBack">Kembali</button></div>
@@ -207,34 +219,106 @@ function heightAt(x, z) {
 }
 
 function createWorld(scene) {
-  scene.fog = new THREE.Fog(0xd98c61, 60, 200);
+  scene.fog = new THREE.Fog(0xe09a6e, 45, 200); // warna kabut = warna cakrawala langit agar menyatu
   const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 24, 12), new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    vertexShader: 'varying float y;void main(){y=normalize(position).y;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader: 'varying float y;void main(){gl_FragColor=vec4(mix(vec3(.85,.55,.38),vec3(.36,.30,.42),smoothstep(0.,.7,y)),1.);}'
+    vertexShader: 'varying vec3 d;void main(){d=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+    fragmentShader: [ // gradasi langit berdebu, halo biru di sekitar matahari (khas Mars), dan siluet pegunungan jauh
+      'varying vec3 d;',
+      'void main(){',
+      ' float y=d.y; vec3 H=vec3(.878,.604,.431);',
+      ' vec3 c=mix(H,vec3(.76,.52,.38),smoothstep(0.,.22,y));',
+      ' c=mix(c,vec3(.34,.27,.40),smoothstep(.14,.9,y));',
+      ' float s=max(dot(d,normalize(vec3(60.,90.,40.))),0.);',
+      ' c+=vec3(.9,.6,.35)*pow(s,10.)*.16;',
+      ' c=mix(c,vec3(.55,.70,.88),pow(s,80.)*.5);',
+      ' float az=atan(d.z,d.x);',
+      ' float r1=.034+.022*sin(az*3.+1.)+.014*sin(az*7.+2.)+.007*sin(az*17.+.5);',
+      ' float r2=.016+.014*sin(az*5.+4.)+.009*sin(az*11.+1.)+.005*sin(az*23.);',
+      ' c=mix(c,mix(H,vec3(.50,.32,.26),.22),1.-smoothstep(r1-.004,r1+.004,y));',
+      ' c=mix(c,mix(H,vec3(.50,.32,.26),.40),1.-smoothstep(r2-.004,r2+.004,y));',
+      ' gl_FragColor=vec4(c,1.);}'
+    ].join('\n')
   })); scene.add(sky);
   const disc = new THREE.Mesh(new THREE.SphereGeometry(12, 16, 8), new THREE.MeshBasicMaterial({ color: 0xfff0d0, fog: false }));
   disc.position.set(60, 90, 40).normalize().multiplyScalar(350);
   scene.add(disc);
   const dOff = disc.position.clone();
+  // Phobos (bulan Mars) dan Bumi sebagai titik biru kecil di langit
+  const moon = new THREE.Mesh(new THREE.IcosahedronGeometry(4, 1), new THREE.MeshLambertMaterial({ color: 0x8a7f78, fog: false }));
+  moon.scale.set(1.3, .9, 1); moon.position.set(-40, 70, -80).normalize().multiplyScalar(340); scene.add(moon);
+  const mOff = moon.position.clone();
+  const earth = new THREE.Mesh(new THREE.SphereGeometry(1.4, 10, 6), new THREE.MeshBasicMaterial({ color: 0xb8dcff, fog: false }));
+  earth.position.set(50, 40, -110).normalize().multiplyScalar(340); scene.add(earth);
+  const eOff = earth.position.clone();
 
-  scene.add(new THREE.HemisphereLight(0xffd2b0, 0x7a3a22, .7));
-  const sun = new THREE.DirectionalLight(0xfff0dc, 1.1);
+  scene.add(new THREE.HemisphereLight(0xffd6b5, 0x74381f, .68));
+  const sun = new THREE.DirectionalLight(0xffefdb, 1.2);
   sun.castShadow = true;
   Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, near: 1, far: 250 });
   sun.shadow.camera.updateProjectionMatrix();
   sun.shadow.bias = -.0005; sun.shadow.normalBias = .05;
   scene.add(sun, sun.target);
 
+  // Debu Mars: partikel melayang tertiup angin; posisi dihitung di GPU supaya ringan untuk Android
+  const DUST_N = { Low: 150, Medium: 260, High: 380 }, DN = 380, dpos = new Float32Array(DN * 3), drnd = new Float32Array(DN);
+  for (let i = 0; i < DN; i++) { dpos[i * 3] = Math.random(); dpos[i * 3 + 1] = Math.random(); dpos[i * 3 + 2] = Math.random(); drnd[i] = Math.random(); }
+  const dg = new THREE.BufferGeometry();
+  dg.setAttribute('position', new THREE.BufferAttribute(dpos, 3)); dg.setAttribute('r', new THREE.BufferAttribute(drnd, 1));
+  dg.setDrawRange(0, DUST_N.Medium);
+  const dustU = { t: { value: 0 }, c: { value: new THREE.Vector3() }, pr: { value: 1 } };
+  const dust = new THREE.Points(dg, new THREE.ShaderMaterial({
+    uniforms: dustU, transparent: true, depthWrite: false,
+    vertexShader: [
+      'uniform float t;uniform vec3 c;uniform float pr;attribute float r;varying float a;',
+      'void main(){',
+      ' vec3 B=vec3(64.,12.,64.);',
+      ' vec3 p=position*B+vec3(2.2,0.,.9)*t*(.6+r*.8);',
+      ' vec2 w=mod(p.xz-c.xz,B.xz)-B.xz*.5;',
+      ' float h=mod(position.y*B.y+t*.2*(r-.5)+sin(t*.4+r*40.)*.5,B.y);',
+      ' vec4 mv=viewMatrix*vec4(c.x+w.x,c.y-1.5+h,c.z+w.y,1.);',
+      ' float dist=length(mv.xyz);',
+      ' a=(1.-smoothstep(16.,32.,dist))*smoothstep(1.,4.,dist)*(.22+.3*r);',
+      ' gl_PointSize=pr*(70.+90.*r)/max(dist,1.);',
+      ' gl_Position=projectionMatrix*mv;}'
+    ].join('\n'),
+    fragmentShader: 'varying float a;void main(){float d=length(gl_PointCoord-.5);gl_FragColor=vec4(.90,.66,.48,a*(1.-smoothstep(.1,.5,d)));}'
+  }));
+  dust.frustumCulled = false; scene.add(dust);
+
+  // Tekstur detail tanah (kerikil dan bercak), tileable, dikalikan dengan warna vertex
+  const dtex = (() => {
+    const T = 128, cv = document.createElement('canvas'); cv.width = cv.height = T;
+    const cx2 = cv.getContext('2d'), im = cx2.createImageData(T, T); let sd = 7;
+    const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    const lat = (n) => { const a = new Float32Array(n * n); for (let i = 0; i < a.length; i++) a[i] = rnd(); return a; };
+    const L1 = lat(8), L2 = lat(16), L3 = lat(32);
+    const samp = (L, n, u, v) => {
+      const x = u * n, y = v * n, i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j, q = (a, b) => L[(((b % n) + n) % n) * n + (((a % n) + n) % n)];
+      const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+      return (q(i, j) * (1 - sx) + q(i + 1, j) * sx) * (1 - sy) + (q(i, j + 1) * (1 - sx) + q(i + 1, j + 1) * sx) * sy;
+    };
+    for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) {
+      const u = x / T, v = y / T, n = .5 * samp(L1, 8, u, v) + .3 * samp(L2, 16, u, v) + .2 * samp(L3, 32, u, v);
+      const val = Math.min(1, .78 + n * .3 + (rnd() > .985 ? -.14 : 0)) * 255, k = (y * T + x) * 4;
+      im.data[k] = im.data[k + 1] = im.data[k + 2] = val; im.data[k + 3] = 255;
+    }
+    cx2.putImageData(im, 0, 0);
+    const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(12, 12);
+    t.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+    return t;
+  })();
+
   // Dunia luas tanpa batas: terrain dibangun per chunk 48 m di sekitar pemain, chunk jauh dibuang. Batu dekor coklat dihapus.
   const CS = 48, SEG = 24, KR = 4, chunks = new Map(), colliders = [], c = new THREE.Color();
-  const gmat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
+  const gmat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, map: dtex });
   const fill = (g) => {
     const p = g.attributes.position, nm = g.attributes.normal, col = g.attributes.color;
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i), z = p.getZ(i), h = heightAt(x, z), nx = heightAt(x - .5, z) - heightAt(x + .5, z), nz = heightAt(x, z - .5) - heightAt(x, z + .5), l = Math.hypot(nx, 1, nz);
       p.setY(i, h); nm.setXYZ(i, nx / l, 1 / l, nz / l);
-      c.setHSL(.04 + .01 * Math.sin(x * .4) * Math.cos(z * .37), .55, THREE.MathUtils.clamp(.3 + h * .025 + .04 * Math.sin(x * 1.3 + z * .9), .18, .55));
+      const pa = Math.sin(x * .11 + z * .07) * Math.sin(z * .13 - x * .05), sl = Math.min((1 - 1 / l) * 4, 1); // bercak debu terang / basal gelap, lereng curam lebih gelap
+      c.setHSL(.04 + .01 * Math.sin(x * .4) * Math.cos(z * .37) + .012 * pa - .01 * sl, .55 - .25 * sl, THREE.MathUtils.clamp(.33 + h * .025 + .04 * Math.sin(x * 1.3 + z * .9) + .05 * pa - .16 * sl, .16, .58));
       c.toArray(col.array, i * 3);
     }
     p.needsUpdate = nm.needsUpdate = col.needsUpdate = true; g.computeBoundingSphere();
@@ -259,7 +343,7 @@ function createWorld(scene) {
   };
   stream({ x: 0, z: 8 }, 30);
 
-  return { sun, colliders, reshape() { chunks.forEach((ch) => fill(ch.mesh.geometry)); },
+  return { sun, colliders, setFx(name) { dg.setDrawRange(0, DUST_N[name] || DUST_N.Medium); }, reshape() { chunks.forEach((ch) => fill(ch.mesh.geometry)); },
     flatten(x, z, r) { // ratakan tanah di bawah bangunan baru (chunk diperbarui di flush)
       const q = r + 6;
       for (let i = Math.floor((x - q) / 4); i <= Math.ceil((x + q) / 4); i++) for (let j = Math.floor((z - q) / 4); j <= Math.ceil((z + q) / 4); j++) if (Math.hypot(i * 4 - x, j * 4 - z) <= q) FM.add((i + 4096) * 8192 + j + 4096);
@@ -268,6 +352,8 @@ function createWorld(scene) {
     flush() { dirty.forEach((k) => { const ch = chunks.get(k); if (ch) fill(ch.mesh.geometry); }); dirty.clear(); }, follow(pos) { // bayangan, langit, dan chunk mengikuti pemain
     stream(pos, 2);
     sky.position.set(pos.x, 0, pos.z); disc.position.copy(dOff).add(sky.position);
+    moon.position.copy(mOff).add(sky.position); earth.position.copy(eOff).add(sky.position);
+    dustU.t.value = performance.now() / 1000; dustU.c.value.set(pos.x, pos.y, pos.z); dustU.pr.value = renderer.domElement.height / 1000;
     sun.position.set(pos.x + 60, pos.y + 90, pos.z + 40);
     sun.target.position.copy(pos); sun.target.updateMatrixWorld();
   } };
@@ -566,11 +652,15 @@ function initBuilding(scene, camera, player, ui, world) {
     return geos[k] || (geos[k] = o === 'c' ? new THREE.CylinderGeometry(w / 2, w / 2, h, 16) : new THREE.BoxGeometry(w, h, d));
   };
   const geom = (k, f) => MG[k] || (MG[k] = f()), PI = Math.PI;
+  const glassFx = (sh) => { // tepi kaca lebih terang (fresnel) supaya kubah terbaca jelas dan terasa futuristik
+    sh.fragmentShader = sh.fragmentShader.replace('#include <dithering_fragment>', '#include <dithering_fragment>\n float mcFr = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 3.0);\n gl_FragColor.rgb += vec3(.30, .80, .90) * mcFr * .30;\n gl_FragColor.a = min(1.0, gl_FragColor.a + mcFr * .30);');
+  };
   function gen(spec, color, gm) { // bangun modul berongga (kaca + rangka + lantai + lampu)
     const g = new THREE.Group(), [k, a, b] = spec.shape, m = gm ? { f: gm, g: gm, fl: gm, l: gm } : {
-      f: new THREE.MeshStandardMaterial({ color: color || 0xc9d0d6, roughness: .5, metalness: .3 }),
+      f: new THREE.MeshStandardMaterial({ color: color || 0xc9d0d6, roughness: .4, metalness: .4 }),
       g: new THREE.MeshStandardMaterial({ color: 0x8fdcff, roughness: .1, transparent: true, opacity: .3, side: THREE.DoubleSide, depthWrite: false }),
       fl: new THREE.MeshStandardMaterial({ color: 0x7d868e, roughness: .9 }), l: new THREE.MeshBasicMaterial({ color: 0xfff1c9 }) };
+    if (!gm) m.g.onBeforeCompile = glassFx;
     const add = (par, geo, t, x, y, z, sc, ry) => {
       const me = new THREE.Mesh(geo, m[t]); me.position.set(x, y, z);
       if (sc) me.scale.set(sc[0], sc[1], sc[2]);
@@ -608,7 +698,7 @@ function initBuilding(scene, camera, player, ui, world) {
     if (spec.shape) return gen(spec, color, gm);
     const g = new THREE.Group();
     spec.parts.forEach(([w, h, d, x, y, z, c, o], i) => {
-      const m = gm || new THREE.MeshStandardMaterial({ color: i === 0 && color ? color : c, roughness: .7, transparent: o === 'g', opacity: o === 'g' ? .45 : 1 });
+      const m = gm || new THREE.MeshStandardMaterial({ color: i === 0 && color ? color : c, roughness: .6, metalness: .15, transparent: o === 'g', opacity: o === 'g' ? .45 : 1 });
       const mesh = new THREE.Mesh(geo(w, h, d, o), m);
       mesh.position.set(x, y, z); mesh.castShadow = mesh.receiveShadow = !gm; g.add(mesh);
       if (i === 0) g.userData.main = mesh;
@@ -2597,6 +2687,7 @@ function applyQuality(name) {
   quality = name;
   try { localStorage.setItem('mc_quality', name); } catch (e) {}
   renderer.setPixelRatio(Math.min(devicePixelRatio, c.pr));
+  world.setFx(name);
   const s = world.sun.shadow;
   s.mapSize.set(c.shadow, c.shadow);
   if (s.map) s.map.dispose();
