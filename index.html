@@ -428,36 +428,193 @@ const SUIT = mat(0xe8edf1), GREY = mat(0x8d949b), GOLD = mat(0xd9a441, { metalne
 const ACC = mat(0x5ee6d0, { emissive: 0x2fb8a4, emissiveIntensity: .6 });
 const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 
+/* --- Rig astronaut: bagian statis digabung per tulang (vertex color) agar draw call tetap sedikit --- */
+const AST_BODY = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .55, metalness: .12 });
+const AST_GLOW = new THREE.MeshBasicMaterial({ vertexColors: true });
+const AST_VISOR = new THREE.MeshStandardMaterial({ color: 0xd9a441, metalness: .75, roughness: .12, emissive: 0x4a3208 });
+const BX = (w, h, d) => new THREE.BoxGeometry(w, h, d), SPH = (r, a = 10, b = 7) => new THREE.SphereGeometry(r, a, b), CYL = (a, b, h, n = 8) => new THREE.CylinderGeometry(a, b, h, n);
+const P = (geo, hex, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) => [geo, hex, x, y, z, rx, ry, rz, sx, sy, sz];
+const _m4 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _v = new THREE.Vector3(), _s = new THREE.Vector3(), _n3 = new THREE.Matrix3(), _c = new THREE.Color();
+function mergeParts(parts) { // gabungkan banyak bentuk menjadi satu geometri berwarna per-vertex
+  const pos = [], nor = [], col = [];
+  for (const [geo, hex, x, y, z, rx, ry, rz, sx, sy, sz] of parts) {
+    const g = geo.index ? geo.toNonIndexed() : geo, p = g.attributes.position, n = g.attributes.normal;
+    _m4.compose(_v.set(x, y, z), _q.setFromEuler(_e.set(rx, ry, rz)), _s.set(sx, sy, sz)); _n3.getNormalMatrix(_m4); _c.setHex(hex);
+    for (let i = 0; i < p.count; i++) {
+      _v.fromBufferAttribute(p, i).applyMatrix4(_m4); pos.push(_v.x, _v.y, _v.z);
+      _v.fromBufferAttribute(n, i).applyMatrix3(_n3).normalize(); nor.push(_v.x, _v.y, _v.z);
+      col.push(_c.r, _c.g, _c.b);
+    }
+    geo.dispose();
+  }
+  const bg = new THREE.BufferGeometry();
+  bg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); bg.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); bg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  bg.computeBoundingSphere(); return bg;
+}
+function buildAstronaut(sc) { // sc = warna utama baju. Tulang: hip > torso > neck(head) / arms > elbows > hands(grip); hip > legs > knees > ankles
+  const WH = 0xf1f4f6, JT = 0x4d565e, DK = 0x2a3036, GR = 0x8d949b, GL = 0xcfd6db, OR = 0xe2873c, TL = 0x5ee6d0, BT = 0x30363c;
+  const G = () => new THREE.Group(), mk = (parts, m, par, cast = true) => { const me = new THREE.Mesh(mergeParts(parts), m); me.castShadow = cast; par.add(me); return me; };
+  const root = G(), hip = G(), torso = G(), neck = G(); hip.position.y = .8; neck.position.y = .71; root.add(hip); hip.add(torso); torso.add(neck);
+  mk([P(BX(.5, .2, .36), sc), P(BX(.46, .16, .34), JT, 0, .14, 0), P(BX(.62, .44, .42), sc, 0, .43, 0), P(BX(.63, .05, .43), OR, 0, .24, 0), P(BX(.78, .13, .4), sc, 0, .64, 0),
+    P(CYL(.17, .2, .1, 10), JT, 0, .72, 0), P(BX(.32, .2, .07), DK, 0, .46, .23), P(BX(.11, .11, .02), OR, -.2, .55, .215),
+    P(BX(.5, .58, .22), GR, 0, .42, -.3), P(BX(.44, .12, .2), JT, 0, .74, -.3), P(CYL(.085, .085, .5, 8), GL, -.14, .46, -.46), P(CYL(.085, .085, .5, 8), GL, .14, .46, -.46),
+    P(SPH(.085, 8, 5), GL, -.14, .71, -.46, 0, 0, 0, 1, .6, 1), P(SPH(.085, 8, 5), GL, .14, .71, -.46, 0, 0, 0, 1, .6, 1), P(CYL(.012, .012, .3, 4), DK, .18, .95, -.4)], AST_BODY, torso);
+  mk([P(BX(.05, .05, .03), OR, -.09, .5, .27), P(BX(.05, .05, .03), TL, 0, .5, .27), P(BX(.05, .05, .03), 0xff4a3a, .09, .5, .27), P(BX(.2, .05, .03), TL, 0, .4, .27),
+    P(BX(.3, .04, .012), TL, 0, .52, -.415), P(BX(.04, .04, .012), OR, .12, .6, -.415), P(SPH(.025, 6, 4), OR, .18, 1.1, -.4)], AST_GLOW, torso, false);
+  const head = G(); neck.add(head);
+  mk([P(CYL(.2, .23, .1, 12), JT), P(SPH(.3, 14, 10), WH, 0, .24, 0), P(BX(.2, .12, .08), JT, 0, .2, -.3), P(SPH(.06, 6, 4), DK, -.3, .22, 0), P(SPH(.06, 6, 4), DK, .3, .22, 0),
+    P(BX(.07, .05, .06), DK, -.26, .36, .1), P(BX(.07, .05, .06), DK, .26, .36, .1)], AST_BODY, head);
+  mk([P(SPH(.24, 16, 12), 0xffffff, 0, .24, .14, 0, 0, 0, 1, .85, .75)], AST_VISOR, head, false);
+  mk([P(BX(.05, .03, .02), 0xfff1c9, -.265, .36, .14), P(BX(.05, .03, .02), 0xfff1c9, .265, .36, .14), P(BX(.11, .022, .01), 0xffe9b0, -.08, .33, .29, 0, 0, .45)], AST_GLOW, head, false);
+  const legs = [], knees = [], ankles = [], arms = [], elbows = [], hands = [];
+  for (let i = 0; i < 2; i++) {
+    const sd = i ? 1 : -1, leg = G(), knee = G(), ank = G();
+    leg.position.set(sd * .15, 0, 0); knee.position.y = -.4; ank.position.y = -.3; hip.add(leg); leg.add(knee); knee.add(ank);
+    mk([P(BX(.24, .4, .26), sc, 0, -.2, 0), P(BX(.26, .06, .28), JT, 0, -.02, 0), P(BX(.25, .04, .27), OR, 0, -.36, 0)], AST_BODY, leg);
+    mk([P(BX(.22, .1, .08), JT, 0, 0, .13), P(BX(.22, .3, .24), sc, 0, -.15, 0), P(BX(.23, .05, .25), JT, 0, -.26, 0)], AST_BODY, knee);
+    mk([P(BX(.25, .14, .4), BT, 0, -.03, .07), P(BX(.27, .04, .42), DK, 0, -.08, .07), P(BX(.24, .1, .24), JT, 0, .06, 0), P(BX(.23, .08, .1), JT, 0, -.02, .25)], AST_BODY, ank);
+    legs.push(leg); knees.push(knee); ankles.push(ank);
+    const arm = G(), elb = G(), hand = G();
+    arm.position.set(sd * .4, .65, 0); elb.position.y = -.3; hand.position.y = -.3; torso.add(arm); arm.add(elb); elb.add(hand);
+    mk([P(SPH(.125, 8, 6), sc), P(BX(.17, .26, .18), sc, 0, -.15, 0), P(BX(.18, .04, .19), OR, 0, -.08, 0)], AST_BODY, arm);
+    mk([P(SPH(.085, 6, 5), JT), P(BX(.15, .26, .16), sc, 0, -.14, 0), P(CYL(.085, .085, .05, 8), OR, 0, -.27, 0)], AST_BODY, elb);
+    mk([P(BX(.16, .12, .18), DK, 0, -.01, 0), P(BX(.15, .05, .1), DK, 0, -.08, .04), P(BX(.04, .07, .06), DK, -sd * .085, -.03, .05)], AST_BODY, hand);
+    arms.push(arm); elbows.push(elb); hands.push(hand);
+  }
+  const grip = G(); hands[1].add(grip); // tempat alat dipegang (tangan kanan)
+  return { root, hip, torso, neck, head, legs, knees, ankles, arms, elbows, hands, grip,
+    s: { t: 0, sp: 0, ph: 0, air: 0, asc: 0, lastVy: 0, wasG: true, jt: 0, land: 0, landT: 0, mw: 0, hw: 0, lean: 0, roll: 0, em: null } };
+}
+
+/* --- Animasi astronaut (dipakai pemain lokal dan avatar pemain lain): jalan/lari, lompat, mendarat, menambang, interaksi --- */
+const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x), sm01 = (x) => { x = clamp01(x); return x * x * (3 - 2 * x); }, lerp = (a, b, t) => a + (b - a) * t, wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+const EMO_DUR = { press: .7, grab: 1, tap: .9, scan: 1.1, work: 1, eat: .9 };
+const EMO_OF = { miner: 'grab', crate: 'grab', green: 'grab', tank: 'tap', med: 'scan', bench: 'work' };
+function animateAstro(R, dt, d) { // d: { sp (m/dtk), grounded, vy, turn, held, mk (mineK), look }
+  const s = R.s, T = Math, k = (tc) => 1 - T.exp(-dt / tc);
+  s.t += dt; s.sp += (d.sp - s.sp) * k(.08);
+  const ws = T.min(s.sp / 4.2, 1), rk = clamp01((s.sp - 4.8) / 2.6), idle = 1 - ws;
+  s.ph += s.sp * 1.4 * dt;
+  if (!d.grounded) { s.air += (1 - s.air) * k(.05); s.lastVy = d.vy; s.jt += dt; }
+  else {
+    s.air += (0 - s.air) * k(.06);
+    if (!s.wasG && s.jt > .12 && s.lastVy < -2.5) { s.land = T.max(.3, clamp01((-s.lastVy - 2) / 7)); s.landT = .32; }
+    s.jt = 0;
+  }
+  s.wasG = d.grounded;
+  const lg = [0, 0], kn = [0, 0], ar = [0, 0], el = [0, 0], az = [0, 0], lz = [0, 0];
+  let hipY = 0, headX = 0, headY = 0, headZ = 0, Tm = .55;
+  // jalan / lari
+  const A = (.42 + .5 * rk) * ws, Aa = (.36 + .6 * rk) * ws, bob = (.035 + .05 * rk) * ws;
+  for (let i = 0; i < 2; i++) {
+    const f = s.ph + i * T.PI, sf = T.sin(f), cf = T.cos(f);
+    lg[i] = sf * A; kn[i] = (T.max(0, -cf) * (.55 + .8 * rk) + .08) * ws; ar[i] = -sf * Aa;
+    el[i] = -((.08 + (.18 + .8 * rk) * ws) * (.6 + .4 * clamp01(-ar[i] / T.max(Aa, .05))));
+  }
+  hipY = -bob * (1 - T.cos(2 * s.ph)) * .5;
+  const pelvis = -T.sin(s.ph) * .1 * ws, twist = T.sin(s.ph) * .14 * ws * (1 + rk);
+  s.lean += ((.05 + .3 * rk) * ws + T.max(-.18, T.min(.18, (d.sp - s.sp) * .035)) - s.lean) * k(.1); // condong maju saat mulai, ke belakang saat mengerem
+  s.roll += (-T.max(-.22, T.min(.22, (d.turn || 0) * .05)) * T.min(1, s.sp / 3) - s.roll) * k(.12);       // miring ke arah belokan
+  let lean = s.lean;
+  const br = T.sin(s.t * 1.9);
+  ar[0] += br * .03 * idle; ar[1] += br * .03 * idle; el[0] -= .12 * idle; el[1] -= .12 * idle; az[0] = -.07 * idle; az[1] = .07 * idle;
+  headY = T.sin(s.t * .5) * .13 * idle; headZ = T.sin(s.t * .37) * .03 * idle; headX = -lean * .7 + (d.look || 0) * .25;
+  s.hw += ((d.held ? 1 : 0) - s.hw) * k(.12); // alat di tangan kanan: lengan ditekuk, tidak mengayun
+  ar[1] = lerp(ar[1], -.35 - T.sin(s.ph) * .05 * ws, s.hw); el[1] = lerp(el[1], -.9, s.hw);
+  // di udara: tolak, tekuk kaki, lalu julurkan saat turun
+  const a = s.air;
+  if (a > .003) {
+    s.asc += ((d.vy > .5 ? 1 : 0) - s.asc) * k(.07);
+    const ld = T.sin(s.ph) < 0 ? 0 : 1, tk = (1 - sm01(s.jt / .12)) * s.asc;
+    for (let i = 0; i < 2; i++) {
+      const lead = i === ld, sd = i ? 1 : -1;
+      let th = lerp(lerp(-.12, lead ? -.45 : .25, ws), lerp(-.45, lead ? -.8 : .4, ws), s.asc), tk2 = lerp(lerp(.2, lead ? .35 : .25, ws), lerp(.95, lead ? 1 : .7, ws), s.asc);
+      th = lerp(th, .3, tk); tk2 = lerp(tk2, .05, tk);
+      lg[i] = lerp(lg[i], th, a); kn[i] = lerp(kn[i], tk2, a); lz[i] = sd * .1 * a;
+      ar[i] = lerp(ar[i], lerp(-.25, lerp(-1.55, lead ? .35 : -1, ws), s.asc), a); az[i] = lerp(az[i], sd * lerp(.8, .3, s.asc), a); el[i] = lerp(el[i], -.35, a);
+    }
+    lean = lerp(lean, .1 + .1 * rk, a); hipY = lerp(hipY, 0, a);
+  } else s.asc = 0;
+  // mendarat: berjongkok sesuai kecepatan jatuh, lalu bangkit
+  if (s.landT > 0) {
+    s.landT -= dt; const u = 1 - s.landT / .32, env = (u < .3 ? sm01(u / .3) : 1 - sm01((u - .3) / .7)) * s.land;
+    hipY -= .22 * env; lean = lerp(lean, .38, env); headX = lerp(headX, -.25, env);
+    for (let i = 0; i < 2; i++) { const sd = i ? 1 : -1; lg[i] = lerp(lg[i], -.55, env); kn[i] = lerp(kn[i], 1.2, env); lz[i] += sd * .08 * env; ar[i] = lerp(ar[i], -.5, env); az[i] = lerp(az[i], sd * .5, env); el[i] = lerp(el[i], -.4, env); }
+  }
+  // menambang: angkat, hantam, lanjutan gerak (fade halus setelah selesai)
+  const mt = d.mk >= 0 ? 1 : 0; s.mw += (mt - s.mw) * k(mt ? .05 : .14);
+  if (s.mw > .004) {
+    const kk = d.mk >= 0 ? d.mk : 1, w = s.mw; let a1, e1, ln, mq;
+    if (kk < .5) { const u = sm01(kk / .5); a1 = lerp(-.1, -2, u); e1 = lerp(-.3, -.45, u); ln = lerp(.05, -.28, u); mq = u * .4; Tm = lerp(.55, -.55, u); }
+    else if (kk < .9) { const u = ((kk - .5) / .4) ** 2; a1 = lerp(-2, .5, u); e1 = lerp(-.45, -.1, u); ln = lerp(-.28, .62, u); mq = lerp(.4, 1, u); Tm = lerp(-.55, 2.5, u); }
+    else { a1 = .5; e1 = -.1; ln = .62; mq = 1; Tm = 2.5; }
+    ar[1] = lerp(ar[1], a1, w); el[1] = lerp(el[1], e1, w); ar[0] = lerp(ar[0], a1 * .9, w); el[0] = lerp(el[0], e1, w); az[0] = lerp(az[0], 0, w); az[1] = lerp(az[1], 0, w);
+    lean = lerp(lean, ln, w); hipY -= .07 * mq * w; headX = lerp(headX, -ln * .5, w);
+    lg[0] = lerp(lg[0], -.35 * mq, w); kn[0] = lerp(kn[0], .55 * mq, w); lg[1] = lerp(lg[1], .25 * mq, w); kn[1] = lerp(kn[1], .25 * mq, w);
+  }
+  // gestur interaksi (pintu, fasilitas, makan): hanya saat diam, memudar jika pemain bergerak
+  if (s.em) {
+    const e = s.em; e.t += dt;
+    if (e.t >= e.d) s.em = null;
+    else {
+      const t = e.t, ev = sm01(T.min(t / .16, (e.d - t) / .2)) * (1 - clamp01(d.sp / 2.2)) * (1 - a) * (1 - s.mw);
+      switch (e.n) {
+        case 'grab': hipY -= .25 * ev; lean = lerp(lean, .55, ev); for (let i = 0; i < 2; i++) { lg[i] = lerp(lg[i], -.9, ev); kn[i] = lerp(kn[i], 1.5, ev); ar[i] = lerp(ar[i], -.7 + T.sin(t * 10) * .08, ev); el[i] = lerp(el[i], -.35, ev); } headX = lerp(headX, -.2, ev); break;
+        case 'tap': lean = lerp(lean, .12, ev); ar[1] = lerp(ar[1], -1.2 + T.sin(t * 8.5) * .18, ev); el[1] = lerp(el[1], -.45 + T.cos(t * 8.5) * .2, ev); ar[0] = lerp(ar[0], -.3, ev); headX = lerp(headX, .1, ev); break;
+        case 'work': lean = lerp(lean, .15, ev); for (let i = 0; i < 2; i++) { ar[i] = lerp(ar[i], -.95 + T.sin(t * 11 + i * T.PI) * .28, ev); el[i] = lerp(el[i], -.7 + T.cos(t * 11 + i * T.PI) * .2, ev); } break;
+        case 'scan': lean = lerp(lean, -.06, ev); for (let i = 0; i < 2; i++) { ar[i] = lerp(ar[i], -.1, ev); az[i] = lerp(az[i], (i ? 1 : -1) * .9, ev); el[i] = lerp(el[i], -.15, ev); } headX = lerp(headX, -.14 + T.sin(t * 3) * .03, ev); break;
+        case 'eat': ar[1] = lerp(ar[1], -1.3, ev); el[1] = lerp(el[1], -1.7, ev); az[1] = lerp(az[1], -.25, ev); headX = lerp(headX, .12, ev); break;
+        default: lean = lerp(lean, .1, ev); ar[1] = lerp(ar[1], -1.25 + T.sin(t * 13) * .06, ev); el[1] = lerp(el[1], -.35, ev); ar[0] = lerp(ar[0], -.25, ev); headX = lerp(headX, .1, ev);
+      }
+    }
+  }
+  R.hip.position.y = .8 + hipY; R.hip.rotation.set(0, pelvis, T.sin(s.t * .6) * .012 * idle);
+  R.torso.rotation.set(lean, twist, s.roll); R.torso.scale.y = 1 + br * .012 * idle;
+  R.head.rotation.set(headX, headY, headZ);
+  for (let i = 0; i < 2; i++) {
+    R.legs[i].rotation.set(lg[i], 0, lz[i]); R.knees[i].rotation.x = kn[i]; R.ankles[i].rotation.x = -(lg[i] + kn[i]) * .65;
+    R.arms[i].rotation.set(ar[i], 0, az[i]); R.elbows[i].rotation.x = el[i];
+  }
+  R.grip.rotation.x = lerp(.55, Tm, s.mw) - 1.3 - (ar[1] + el[1]); // alat tetap mengarah wajar mengikuti gerak lengan
+}
+
 class Player {
   constructor(scene, camera, colliders) {
     this.cam = camera; this.colliders = colliders;
     this.obj = new THREE.Group(); scene.add(this.obj);
-    const part = (geo, m, x, y, z, parent = this.obj) => {
-      const mesh = new THREE.Mesh(geo, m); mesh.position.set(x, y, z); mesh.castShadow = true; parent.add(mesh); return mesh;
-    };
-    part(box(.6, .7, .4), SUIT, 0, 1.15, 0);                    // badan
-    part(box(.46, .55, .22), GREY, 0, 1.2, -.3);                // tabung oksigen
-    part(box(.3, .08, .02), ACC, 0, 1.3, .21);                  // panel dada
-    part(new THREE.SphereGeometry(.3, 16, 12), SUIT, 0, 1.75, 0); // helm
-    part(new THREE.SphereGeometry(.24, 16, 12), GOLD, 0, 1.75, .14).scale.set(1, .85, .75); // visor
-    const limb = (w, h, x, y) => {
-      const pivot = new THREE.Group(); pivot.position.set(x, y, 0); this.obj.add(pivot);
-      part(box(w, h, w * 1.1), SUIT, 0, -h / 2, 0, pivot); return pivot;
-    };
-    this.legs = [limb(.22, .8, -.15, .8), limb(.22, .8, .15, .8)];
-    this.arms = [limb(.16, .6, -.4, 1.45), limb(.16, .6, .4, 1.45)];
+    this.rig = buildAstronaut(0xe8edf1); this.obj.add(this.rig.root);
+    this.legs = this.rig.legs; this.arms = this.rig.arms; this.grip = this.rig.grip;
     this.pitch = .35; this.phase = 0; this.sw = 0; this.mineK = -1; this.lock = false; this.solid = null; this.held = null;
+    this.fa = null; this.bd = null;
     this.reset();
   }
   reset() {
     this.obj.position.set(0, heightAt(0, 8), 8);
     this.obj.rotation.y = Math.PI;
-    this.yaw = 0; this.vy = 0; this.ground = true;
+    this.yaw = 0; this.vy = 0; this.ground = true; this.fa = null;
+  }
+  face(x, z) { const p = this.obj.position; this.fa = Math.atan2(x - p.x, z - p.z); } // menghadap target dengan halus
+  emote(name, x, z) { if (x !== undefined) this.face(x, z); this.rig.s.em = { n: name, t: 0, d: EMO_DUR[name] || .8 }; }
+  idle(dt) { animateAstro(this.rig, dt, { sp: 0, grounded: true, vy: 0, held: this.held, mk: -1 }); } // mode bangun: kamera bebas, karakter tetap hidup
+  board() { const p = this.obj.position; this.bd = { t: 0, d: .55, x: p.x, y: p.y, z: p.z }; this.obj.visible = true; } // mulai animasi naik rover
+  unboard() { this.bd = null; this.rig.root.scale.setScalar(1); this.obj.visible = true; }
+  rideStep(dt, r) { // dipanggil saat mengemudi: posisi mengikuti rover; transisi naik berupa lompatan masuk kabin
+    const o = this.obj, b = this.bd;
+    if (b) {
+      b.t += dt; const u = Math.min(b.t / b.d, 1), e = sm01(u);
+      o.position.set(b.x + (r.x - b.x) * e, b.y + (r.y + .6 - b.y) * e + Math.sin(Math.PI * u) * .6, b.z + (r.z - b.z) * e);
+      o.rotation.y += wrapA(r.hd - o.rotation.y) * Math.min(1, dt * 12);
+      animateAstro(this.rig, dt, { sp: 0, grounded: false, vy: u < .45 ? 3 : -3, held: this.held, mk: -1 });
+      this.rig.root.scale.setScalar(1 - sm01((u - .6) / .4) * .9);
+      if (u >= 1) { this.bd = null; o.visible = false; this.rig.root.scale.setScalar(1); }
+      return;
+    }
+    o.visible = false; o.position.set(r.x, r.y, r.z); o.rotation.y = r.hd;
   }
   update(dt, i) {
     this.yaw -= i.lx * .0035;
     this.pitch = THREE.MathUtils.clamp(this.pitch + i.ly * .003, .08, 1.3);
-    const p = this.obj.position, len = this.lock ? 0 : Math.hypot(i.mx, i.my), moving = len > .05;
+    const p = this.obj.position, o = this.obj.rotation, len = this.lock ? 0 : Math.hypot(i.mx, i.my), moving = len > .05, x0 = p.x, z0 = p.z, ry0 = o.y;
     if (moving) {
       const s = Math.sin(this.yaw), c = Math.cos(this.yaw), k = Math.min(len, 1) / len;
       const dx = (-s * i.my + c * i.mx) * k, dz = (-c * i.my - s * i.mx) * k; // relatif arah kamera
@@ -465,31 +622,29 @@ class Player {
       const ox = p.x, oz = p.z, nx = ox + dx * v * dt, nz = oz + dz * v * dt, sd = this.solid; // bangunan solid, per sumbu agar bisa menyusur dinding
       p.x = nx; p.z = oz; if (sd && sd(p.x, p.z) && !sd(ox, oz)) p.x = ox;
       p.z = nz; if (sd && sd(p.x, p.z) && !sd(p.x, oz)) p.z = oz;
-      const o = this.obj.rotation;
       let d = Math.atan2(dx, dz) - o.y;
       d = Math.atan2(Math.sin(d), Math.cos(d));
       o.y += d * Math.min(1, dt * 12);
       this.phase += v * dt * 1.4;
+      this.fa = null; // input pemain membatalkan hadap otomatis
+    } else if (this.fa !== null) { // hadap target (interaksi/menambang) dengan halus, bukan langsung berputar
+      const d = wrapA(this.fa - o.y); o.y += d * Math.min(1, dt * 14);
+      if (Math.abs(d) < .02) this.fa = null;
     }
     for (const r of this.colliders) { // tabrakan dengan batu besar
       const ax = p.x - r.x, az = p.z - r.z, d = Math.hypot(ax, az), m = r.r + .4;
       if (d > 0 && d < m) { p.x = r.x + (ax / d) * m; p.z = r.z + (az / d) * m; }
     }
+    const spd = moving && dt > 1e-4 ? Math.min(Math.hypot(p.x - x0, p.z - z0) / dt, 9) : 0; // kecepatan nyata: kaki berhenti melangkah saat tertahan dinding
     const g = heightAt(p.x, p.z);
     this.vy -= 10 * dt;
     if (i.jump && this.ground) this.vy = 6.5;
     p.y += this.vy * dt;
+    const above = p.y - g, vyN = this.vy;
     this.ground = p.y <= g;
     if (this.ground) { p.y = g; this.vy = 0; }
 
-    this.sw += ((moving ? Math.sin(this.phase) * .8 : 0) - this.sw) * Math.min(1, dt * 12);
-    this.legs[0].rotation.x = this.sw; this.legs[1].rotation.x = -this.sw;
-    this.arms[0].rotation.x = -this.sw; this.arms[1].rotation.x = this.sw;
-    if (this.held) this.arms[1].rotation.x = -.35 + this.sw * .3;
-    if (this.mineK >= 0) { // animasi menambang: angkat alat, lalu hantam ke bawah
-      const k = this.mineK, a = k < .4 ? -2.4 * (k / .4) : -2.4 + 2.9 * ((k - .4) / .6) ** 2;
-      this.arms[1].rotation.x = a; this.arms[0].rotation.x = a * .6;
-    }
+    animateAstro(this.rig, dt, { sp: spd, grounded: above < .14 && vyN < 2, vy: vyN, turn: dt > 1e-4 ? wrapA(o.y - ry0) / dt : 0, held: this.held, mk: this.mineK, look: this.pitch - .35 });
 
     const D = 7, cp = Math.cos(this.pitch), ty = p.y + 1.5, cam = this.cam; // kamera orbit di belakang
     cam.position.set(p.x + Math.sin(this.yaw) * cp * D, ty + Math.sin(this.pitch) * D, p.z + Math.cos(this.yaw) * cp * D);
@@ -1322,7 +1477,7 @@ function initPlay(scene, player, build, colony, ui) {
   // Alat di tangan + animasi menambang + serpihan
   const sw = { t: 0, n: null, done: true }, chips = [], chipG = new THREE.BoxGeometry(.1, .1, .1), chipM = mat(0xc9a27a);
   const wood = mat(0x8a6b4a), steel = mat(0xaab6c2, { metalness: .6 }), holder = new THREE.Group();
-  holder.position.set(0, -.6, .08); holder.rotation.x = 1.3; player.arms[1].add(holder);
+  holder.position.set(0, 0, .08); holder.rotation.x = 1.3; player.grip.add(holder);
   function toolMesh(k) {
     const g = new THREE.Group(), add = (geo, m, x, y, z) => { const me = new THREE.Mesh(geo, m); me.position.set(x, y, z); me.castShadow = true; g.add(me); };
     add(new THREE.CylinderGeometry(.03, .03, 1.1, 6), wood, 0, .4, 0);
@@ -1352,7 +1507,7 @@ function initPlay(scene, player, build, colony, ui) {
   renderHud();
   function swing(n) {
     if (sw.t > 0) return;
-    const p = player.obj.position; player.obj.rotation.y = Math.atan2(n.x - p.x, n.z - p.z);
+    player.face(n.x, n.z);
     Object.assign(sw, { t: .6, n, done: false });
   }
   function burst(n) {
@@ -1361,7 +1516,7 @@ function initPlay(scene, player, build, colony, ui) {
       m.userData = { v: new THREE.Vector3((Math.random() - .5) * 3, 2 + Math.random() * 2, (Math.random() - .5) * 3), l: .7 }; scene.add(m); chips.push(m);
     }
   }
-  function eat() { bag.food--; colony.eat(30); SFX('eat'); ui.toast(`Makan: kenyang +30 (sisa ${bag.food} makanan di tas)`); }
+  function eat() { player.emote('eat'); bag.food--; colony.eat(30); SFX('eat'); ui.toast(`Makan: kenyang +30 (sisa ${bag.food} makanan di tas)`); }
   let rpcBusy = false;
   function guestUse(it) { // guest memakai stok bersama lewat host: host memproses satu per satu, jadi tidak ada duplikasi resource
     const ty = it.type, sto = it.store || {};
@@ -1451,12 +1606,12 @@ function initPlay(scene, player, build, colony, ui) {
     const t = nearest();
     if (!t) { if (bag.food > 0) return eat(); return ui.toast('Tidak ada yang bisa dipakai di dekat sini'); }
     if (t.k === 'rover') return board();
-    if (t.k === 'door') { const k = t.m.userData.key; doors.set(k, !doors.get(k)); SFX('door'); if (build.hooks.doorChanged) build.hooks.doorChanged(dkey(k), !!doors.get(k)); }
+    if (t.k === 'door') { player.emote('press', t.m.userData.x, t.m.userData.z); const k = t.m.userData.key; doors.set(k, !doors.get(k)); SFX('door'); if (build.hooks.doorChanged) build.hooks.doorChanged(dkey(k), !!doors.get(k)); }
     else if (t.k === 'node') {
       const need = NODE[t.n.type].tool;
       if (held !== need) return ui.toast(`Pegang ${TOOLS.find((x) => x[0] === need)[1]} dulu (Tas, lalu Equip)`);
       swing(t.n);
-    } else use(t.it);
+    } else { player.emote(EMO_OF[t.it.type] || 'press', t.it.x, t.it.z); use(t.it); }
   }
 
   // ===== ROVER SURYA: kendaraan cepat, alat tambang lengkap, tanpa bahan bakar =====
@@ -1482,6 +1637,7 @@ function initPlay(scene, player, build, colony, ui) {
     const arm = new THREE.Group(); arm.position.set(0, .95, 1.5); arm.rotation.x = -.3; g.add(arm);
     add(B(.16, .16, 1.5), rdark, 0, 0, .75, arm);
     const hold = new THREE.Group(); hold.position.set(0, 0, 1.5); hold.rotation.x = 1.2; arm.add(hold);
+    wheels.forEach((w) => { w.rotation.order = 'YXZ'; }); // putar roda (x) lalu belok (y)
     g.rotation.order = 'YXZ'; g.userData = { wheels, arm, hold };
     return g;
   }
@@ -1491,6 +1647,20 @@ function initPlay(scene, player, build, colony, ui) {
     r.y = heightAt(r.x, r.z);
     r.g.position.set(r.x, r.y, r.z); r.g.rotation.y = r.hd;
     r.g.rotation.x = -Math.atan2(heightAt(r.x + f[0] * 1.7, r.z + f[1] * 1.7) - heightAt(r.x - f[0] * 1.7, r.z - f[1] * 1.7), 3.4);
+    if (r.fx) { r.g.position.y += r.fx.bob; r.g.rotation.x += r.fx.pit; r.g.rotation.z = r.fx.roll; } // efek visual gerak rover
+  }
+  function roverFx(r, dt) { // animasi visual rover: roda depan berbelok, bodi miring saat belok, mengangguk saat gas/rem, getar halus saat melaju
+    const f = r.fx || (r.fx = { x0: r.x, z0: r.z, hd0: r.hd, vf: 0, roll: 0, pit: 0, steer: 0, bob: 0, ph: 0 });
+    if (dt < 1e-4) return;
+    const dx = r.x - f.x0, dz = r.z - f.z0, yr = Math.atan2(Math.sin(r.hd - f.hd0), Math.cos(r.hd - f.hd0)) / dt;
+    f.x0 = r.x; f.z0 = r.z; f.hd0 = r.hd;
+    if (dx * dx + dz * dz > 9) { f.vf = 0; return; } // rover dipindah/dipanggil: abaikan lompatan posisi
+    const cl2 = THREE.MathUtils.clamp, v = cl2((dx * Math.sin(r.hd) + dz * Math.cos(r.hd)) / dt, -25, 25), av = Math.abs(v), k1 = 1 - Math.exp(-dt / .12);
+    f.pit += (cl2(-(v - f.vf) * .05, -.07, .07) - f.pit) * k1; f.vf += (v - f.vf) * (1 - Math.exp(-dt / .1));
+    f.steer += (cl2(yr * 1.7 / Math.max(av, 2) * (v >= 0 ? 1 : -1), -.5, .5) * cl2(av / 1.5, 0, 1) - f.steer) * k1;
+    f.roll += (cl2(yr * .045 * cl2(av / 6, 0, 1), -.12, .12) - f.roll) * k1;
+    f.ph += av * dt * 2.4; f.bob = (Math.sin(f.ph) * .012 + Math.sin(f.ph * 2.3 + 1) * .008) * cl2(av / 8, 0, 1);
+    r.g.userData.wheels[0].rotation.y = r.g.userData.wheels[1].rotation.y = f.steer;
   }
   function spawnRover() { // rover muncul / dipanggil ke depan pemain
     const p = player.obj.position, a0 = player.obj.rotation.y;
@@ -1553,7 +1723,7 @@ function initPlay(scene, player, build, colony, ui) {
   }
   EXTRA.get = () => ({ hand: hand.slice(), act, rover: rover ? { x: rover.x, z: rover.z, hd: rover.hd } : null });
   EXTRA.set = (s) => {
-    if (driving) { driving = false; player.obj.visible = true; $('bBuild').textContent = 'Bangun'; }
+    if (driving) { driving = false; player.unboard(); $('bBuild').textContent = 'Bangun'; }
     hand.splice(0, 3, ...(s && s.hand ? s.hand : ['shovel', 'pick', 'axe'])); act = s && s.act !== undefined ? s.act : -1; applyHeld();
     if (s && s.rover) { if (!rover) { rover = { g: makeRover(), v: 0, y: 0 }; scene.add(rover.g); } Object.assign(rover, s.rover, { v: 0 }); placeRover(); }
     else if (rover) { scene.remove(rover.g); rover = null; }
@@ -1569,7 +1739,7 @@ function initPlay(scene, player, build, colony, ui) {
     Object.assign(rover, { x, z, hd: rot * Math.PI / 2, v: 0 }); placeRover();
   };
   function startDrive() {
-    driving = true; camOff = 0; delete rover.tx; player.obj.visible = false; $('bBuild').textContent = 'Turun'; SFX('door');
+    driving = true; camOff = 0; delete rover.tx; player.board(); $('bBuild').textContent = 'Turun'; SFX('door');
     ui.toast('Naik rover: Aksi dekat sumber daya = tambang otomatis, tombol Turun = keluar');
   }
   function board() { // di room: izin naik diputuskan host (satu pengemudi per rover)
@@ -1582,8 +1752,8 @@ function initPlay(scene, player, build, colony, ui) {
     if (!driving) return;
     const r = rover, c = Math.cos(r.hd), s = Math.sin(r.hd), spots = [[c * 2.4, -s * 2.4], [-c * 2.4, s * 2.4], [-s * 3, -c * 3], [s * 3, c * 3]];
     const sp = spots.find(([dx, dz]) => !solid(r.x + dx, r.z + dz)) || spots[0];
-    driving = false; r.v = 0; player.obj.visible = true; player.vy = 0;
-    player.obj.position.set(r.x + sp[0], heightAt(r.x + sp[0], r.z + sp[1]), r.z + sp[1]);
+    driving = false; r.v = 0; player.unboard(); player.vy = 3.2; // turun dengan lompatan kecil
+    player.obj.position.set(r.x + sp[0], heightAt(r.x + sp[0], r.z + sp[1]) + .9, r.z + sp[1]);
     $('bBuild').textContent = 'Bangun'; SFX('door');
   }
   function drive(dt, i) {
@@ -1596,9 +1766,9 @@ function initPlay(scene, player, build, colony, ui) {
     const ox = r.x, oz = r.z, wasB = blockedAt(r, ox, oz);
     r.x += Math.sin(r.hd) * r.v * dt; r.z += Math.cos(r.hd) * r.v * dt;
     if (!wasB && blockedAt(r, r.x, r.z)) { r.x = ox; r.z = oz; r.v *= -.25; }
-    placeRover();
+    roverFx(r, dt); placeRover();
     r.g.userData.wheels.forEach((w) => { w.rotation.x += r.v * dt / .5; });
-    player.obj.position.set(r.x, r.y, r.z); player.obj.rotation.y = r.hd;
+    player.rideStep(dt, r);
     const cy = r.hd + Math.PI + camOff, cp = Math.cos(player.pitch), D = 10, ty = r.y + 1.8;
     cam.position.set(r.x + Math.sin(cy) * cp * D, ty + Math.sin(player.pitch) * D, r.z + Math.cos(cy) * cp * D);
     cam.position.y = Math.max(cam.position.y, heightAt(cam.position.x, cam.position.z) + .7);
@@ -1706,8 +1876,9 @@ function initPlay(scene, player, build, colony, ui) {
       rover.x += far ? dx : dx * k; rover.z += far ? dz : dz * k;
       rover.hd += Math.atan2(Math.sin(rover.thd - rover.hd), Math.cos(rover.thd - rover.hd)) * k;
       rover.g.userData.wheels.forEach((w) => { w.rotation.x += Math.hypot(dx, dz) * k / .5; });
-      placeRover();
+      roverFx(rover, dt); placeRover();
     }
+    if (rover && !driving && rover.tx === undefined && rover.fx && Math.abs(rover.fx.roll) + Math.abs(rover.fx.pit) + Math.abs(rover.fx.steer) + Math.abs(rover.fx.bob) > .002) { roverFx(rover, dt); placeRover(); } // rover berhenti: miring/anggukan kembali normal
     cabG.visible = true; // area hijau teraliri selalu terlihat
     runMiners(dt);
     restockT += dt; if (restockT >= 60) { restockT = 0; restock(); }
@@ -2353,14 +2524,9 @@ function initNet(ui, player, scene, build, play, colony) {
 
   // Avatar astronaut pemain lain (bukan pemain lokal), warna berbeda per UID + label nama
   function makeAvatar(uid, name, isHost) {
-    const g = new THREE.Group(), suit = SUIT.clone();
+    const g = new THREE.Group();
     let h = 0; for (const ch of uid) h = (h * 31 + ch.charCodeAt(0)) % 360;
-    suit.color.setHSL(h / 360, .55, .7);
-    const part = (geo, m, x, y, z, parent = g) => { const me = new THREE.Mesh(geo, m); me.position.set(x, y, z); me.castShadow = true; parent.add(me); return me; };
-    part(box(.6, .7, .4), suit, 0, 1.15, 0); part(box(.46, .55, .22), GREY, 0, 1.2, -.3); part(box(.3, .08, .02), ACC, 0, 1.3, .21);
-    part(new THREE.SphereGeometry(.3, 12, 10), suit, 0, 1.75, 0); part(new THREE.SphereGeometry(.24, 12, 10), GOLD, 0, 1.75, .14).scale.set(1, .85, .75);
-    const limb = (w, hh, x, y) => { const pv = new THREE.Group(); pv.position.set(x, y, 0); g.add(pv); part(box(w, hh, w * 1.1), suit, 0, -hh / 2, 0, pv); return pv; };
-    const legs = [limb(.22, .8, -.15, .8), limb(.22, .8, .15, .8)], arms = [limb(.16, .6, -.4, 1.45), limb(.16, .6, .4, 1.45)];
+    const rig = buildAstronaut(new THREE.Color().setHSL(h / 360, .55, .7).getHex()); g.add(rig.root);
     const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64;
     const cx = cv.getContext('2d');
     cx.fillStyle = 'rgba(20,10,8,.7)'; cx.fillRect(0, 8, 256, 48); cx.fillStyle = isHost ? '#f5c451' : '#5ee6d0';
@@ -2368,12 +2534,12 @@ function initNet(ui, player, scene, build, play, colony) {
     const tex = new THREE.CanvasTexture(cv), spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
     spr.scale.set(2.4, .6, 1); spr.position.set(0, 2.4, 0); spr.renderOrder = 10; g.add(spr);
     scene.add(g);
-    return { g, legs, arms, tex, suit, spr, tx: 0, ty: 0, tz: 0, tr: 0, phase: 0, fresh: true };
+    return { g, rig, legs: rig.legs, arms: rig.arms, tex, spr, tx: 0, ty: 0, tz: 0, tr: 0, phase: 0, fresh: true, rs: 1, py: 0, pr: 0 };
   }
   function removeAvatar(uid) {
     const a = avatars.get(uid); if (!a) return;
-    scene.remove(a.g); a.tex.dispose(); a.spr.material.dispose(); a.suit.dispose();
-    a.g.traverse((o) => { if (o.geometry && o.geometry.type === 'SphereGeometry') o.geometry.dispose(); });
+    scene.remove(a.g); a.tex.dispose(); a.spr.material.dispose();
+    a.g.traverse((o) => { if (o.isMesh && o.geometry) o.geometry.dispose(); });
     avatars.delete(uid);
   }
   async function onPlayer(s) {
@@ -2645,13 +2811,14 @@ function initNet(ui, player, scene, build, play, colony) {
       if (S.room && S.ready && S.refs) { S.sent += dt * 1000; if (S.sent >= SEND_MS) { S.sent = 0; send(false); } }
       if (!avatars.size) return;
       const k = 1 - Math.exp(-dt * 10);
-      avatars.forEach((a) => {
-        const g = a.g, dx = a.tx - g.position.x, dz = a.tz - g.position.z, dist = Math.hypot(dx, dz);
+      avatars.forEach((a, uid) => {
+        const g = a.g, dx = a.tx - g.position.x, dz = a.tz - g.position.z, dist = Math.hypot(dx, dz), ox = g.position.x, oz = g.position.z, oy = g.position.y, or = g.rotation.y;
         if (dist > 30) g.position.set(a.tx, a.ty, a.tz); else { g.position.x += dx * k; g.position.z += dz * k; g.position.y += (a.ty - g.position.y) * k; }
         g.rotation.y += norm2(a.tr - g.rotation.y) * k;
-        const sp = dist / Math.max(dt, .001); a.phase += Math.min(sp, 8) * dt * 1.8;
-        const sw = Math.sin(a.phase) * .7 * Math.min(1, sp / 2.5);
-        a.legs[0].rotation.x = sw; a.legs[1].rotation.x = -sw; a.arms[0].rotation.x = -sw; a.arms[1].rotation.x = sw;
+        const dd = Math.max(dt, .001), sp = dist > 30 ? 0 : Math.min(Math.hypot(g.position.x - ox, g.position.z - oz) / dd, 9), vy = dist > 30 ? 0 : (g.position.y - oy) / dd;
+        const above = g.position.y - heightAt(g.position.x, g.position.z), riding = roverDrv === uid; // pengemudi rover: avatar masuk kabin (tersembunyi), label nama tetap
+        a.rs += ((riding ? 0 : 1) - a.rs) * k; a.rig.root.visible = a.rs > .03; a.rig.root.scale.setScalar(Math.max(a.rs, .001));
+        animateAstro(a.rig, dt, { sp: riding ? 0 : sp, grounded: above < .25 && vy < 2.5, vy, turn: norm2(g.rotation.y - or) / dd, held: null, mk: -1 });
       });
     },
   };
@@ -2725,7 +2892,7 @@ renderer.setAnimationLoop(() => {
   }
   const i = input.poll();
   if (!ui.paused) {
-    if (!build.flying()) { if (play.driving()) play.drive(dt, i); else player.update(dt, i); }
+    if (!build.flying()) { if (play.driving()) play.drive(dt, i); else player.update(dt, i); } else player.idle(dt);
     const sp = Math.floor(player.phase / Math.PI);
     if (sp !== lastStep) { lastStep = sp; if (!build.flying() && player.phase > 0 && player.ground !== false) SFX('step'); }
     world.follow(build.flying() ? build.focus : player.obj.position);
