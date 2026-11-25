@@ -799,6 +799,8 @@ function initBuilding(scene, camera, player, ui, world) {
   for (const n of [1, 2, 3]) { try { bps[n] = JSON.parse(localStorage.getItem('mc_bp' + n)); } catch (e) {} }
 
   const say = (m) => ui.toast(m);
+  const isGuest = () => !!(hooks.guest && hooks.guest()); // tamu di dunia host: bangunan dikirim ke host, tidak dibuat di perangkat tamu
+  let gBusy = false;
   const hud = () => inv.forEach((v, i) => { $('r' + i).textContent = `${RES_S[i]} ${v}`; $('r' + i).title = RES[i]; });
   const afford = (s) => s.cost.every((c, i) => inv[i] >= c);
   const pay = (s, k) => { s.cost.forEach((c, i) => { inv[i] -= k * c; }); hud(); };
@@ -967,14 +969,38 @@ function initBuilding(scene, camera, player, ui, world) {
     for (let x = x0; x !== e[0]; x += Math.sign(e[0] - x) * 2) segs.push([x + Math.sign(e[0] - x), z0, 0]);
     for (let z = z0; z !== e[1]; z += Math.sign(e[1] - z) * 2) segs.push([e[0], z + Math.sign(e[1] - z), 1]);
     if (!segs.length) { S.anchor = null; return say('Titik awal dibatalkan'); }
+    if (isGuest()) { const fresh = segs.filter(([x, z, r]) => !clash(s, x, z, r, S.lv)); S.anchor = e; return fresh.length ? guestPlace(s, fresh) : say('Jalur sudah terisi'); }
     const made = [];
     segs.forEach(([x, z, r]) => { if (!clash(s, x, z, r, S.lv)) made.push(create(s, x, z, S.lv, r, PALETTE[S.col])); });
     undoStack.push(() => made.forEach((it) => detach(it)));
     S.anchor = e; say(`${made.length} segmen ${s.n} dipasang`); render();
   }
+  function guestPlace(s, segs) { // tamu: permintaan bangun dikirim ke host (penulis tunggal dunia); bangunan muncul setelah host menerbitkannya
+    if (s.id === 'rover') return say('Rover hanya bisa dirakit oleh host');
+    if (!hooks.rpc) return say('Belum terhubung ke room');
+    if (gBusy) return say('Permintaan bangun sebelumnya masih diproses');
+    const req = { a: 'build', k: s.id, lv: S.lv };
+    if (typeof PALETTE[S.col] === 'number') req.c = PALETTE[S.col];
+    if (segs) {
+      if (segs.length > 64) return say('Jalur terlalu panjang untuk sekali kirim (maks 64 segmen)');
+      req.sg = segs.map((q) => q.join(',')).join(';') + ';';
+    } else {
+      const t = target(s);
+      if (!t.ok) return say(t.why);
+      Object.assign(req, { x: t.x, z: t.z, rot: t.rot });
+    }
+    gBusy = true; say('Mengirim ke host...');
+    hooks.rpc(req).then((res) => {
+      gBusy = false;
+      if (res && res.ok) { if (!segs) pay(s, 1); SFX('build'); say(segs ? `${res.n || 0} segmen ${s.n} dipasang` : `${s.n} dipasang`); }
+      else { SFX('err'); say((res && res.msg) || 'Host menolak bangunan ini'); }
+      render();
+    });
+  }
   function place() {
     const c = S.carry, s = c ? c.it.spec : CAT[S.sel];
     if (s.line && !c) return drawLine(s);
+    if (isGuest()) return guestPlace(s);
     if (s.id === 'rover' && !c) { // rover bukan komponen: dirakit/dipindah lewat hook (biaya dipotong di sana)
       const tr = target(s);
       if (!tr.ok && !/kurang/i.test(tr.why)) return say(tr.why);
@@ -1005,6 +1031,7 @@ function initBuilding(scene, camera, player, ui, world) {
   }
   function act() {
     const m = S.mode;
+    if (isGuest()) return place(); // tamu hanya menambah bangunan
     if (S.carry) return place();
     if (m === 'build') return place();
     if (m === 'bp') return;
@@ -1020,13 +1047,13 @@ function initBuilding(scene, camera, player, ui, world) {
     render();
   }
   function rot() {
-    if (S.mode === 'build' || S.carry) S.rot = (S.rot + 1) % 4;
+    if (S.mode === 'build' || S.carry || isGuest()) S.rot = (S.rot + 1) % 4;
     else rotateItem(find());
   }
   function cancel() { S.anchor = null; if (S.carry) { attach(S.carry.it); S.carry = null; render(); } }
-  function undo() { const u = undoStack.pop(); if (!u) return say('Tidak ada yang bisa di-undo'); u(); render(); }
+  function undo() { if (isGuest()) return say('Tamu tidak bisa membatalkan bangunan. Minta host menghapusnya.'); const u = undoStack.pop(); if (!u) return say('Tidak ada yang bisa di-undo'); u(); render(); }
   const lvl = (d) => { S.lv = (S.lv + d + 3) % 3; render(); };
-  function setMode(m) { if (S.carry && m !== 'move') cancel(); S.mode = m; render(); }
+  function setMode(m) { if (isGuest() && m !== 'build') return say('Tamu hanya bisa menambah bangunan. Minta host untuk memindah atau menghapus.'); if (S.carry && m !== 'move') cancel(); S.mode = m; render(); }
 
   // Blueprint: rancangan disimpan di localStorage (3 slot); Phase 5 memindahkannya ke cloud
   const serialize = () => items.map((i) => ({ id: i.id, type: i.type, x: i.x, z: i.z, lv: i.lv, rot: i.rot, scale: i.scale, color: i.color, cost: i.cost, store: i.store }));
@@ -1058,7 +1085,7 @@ function initBuilding(scene, camera, player, ui, world) {
   };
   function render() {
     const b = S.mode === 'build';
-    $('modes').replaceChildren(...MODES.map(([m, n]) => btn(n, S.mode === m ? 'on' : '', () => setMode(m))));
+    $('modes').replaceChildren(...(isGuest() ? MODES.filter((q) => q[0] === 'build') : MODES).map(([m, n]) => btn(n, S.mode === m ? 'on' : '', () => setMode(m))));
     $('cats').hidden = $('comps').hidden = !b;
     $('cats').replaceChildren(...GROUPS.map((g) => btn(g, S.g === g ? 'on' : '', () => { S.g = g; S.sel = CAT.findIndex((c) => c.g === g); render(); })));
     $('comps').replaceChildren(...(CAT.map((c, i) => c.g === S.g && btn(c.n, (S.sel === i ? 'on' : '') + (afford(c) ? '' : ' no'), () => { S.sel = i; render(); }, costTxt(c))).filter(Boolean)));
@@ -1121,19 +1148,45 @@ function initBuilding(scene, camera, player, ui, world) {
     if (h !== hintTxt) { hintTxt = h; $('hint').textContent = h; }
   }
   function toggle() {
-    if (hooks.locked && hooks.locked()) return say('Dunia milik host: hanya host yang bisa membangun'); // guest memakai dunia host
+    if (isGuest()) { S.mode = 'build'; S.carry = null; } // tamu: hanya mode Bangun, bangunan dikirim ke host
     S.on = !S.on; document.body.classList.toggle('building', S.on); grid.visible = S.on;
     items.forEach((it) => { const d = it.obj.userData.decal; if (d) d.visible = S.on; });
     $('bBuild').textContent = S.on ? 'Tutup' : 'Bangun'; $('bJump').textContent = S.on ? 'Naik' : 'Loncat'; $('bAct').textContent = S.on ? 'Turun' : 'Aksi';
     if (S.on) {
       const p = player.obj.position; F.yaw = player.yaw; F.pitch = .75; F.pos.set(p.x + Math.sin(F.yaw) * 9, p.y + 8, p.z + Math.cos(F.yaw) * 9);
-      say(document.body.classList.contains('touch') ? 'Kamera bebas: joystick gerak, Naik/Turun, ketuk tanah untuk membidik' : 'Kamera bebas: WASD gerak, Space naik, C turun, klik untuk memasang');
+      say(isGuest() ? 'Mode tamu: bangunan dikirim ke host, bahan diambil dari inventarismu' : document.body.classList.contains('touch') ? 'Kamera bebas: joystick gerak, Naik/Turun, ketuk tanah untuk membidik' : 'Kamera bebas: WASD gerak, Space naik, C turun, klik untuk memasang');
     }
     if (!S.on) { cancel(); glow(hl, false); hl = null; }
     render();
   }
+  function hostPlace(v) { // HOST: menerapkan permintaan bangun tamu. Hanya host yang membuat item, jadi tidak ada bangunan ganda; biaya dibayar dari bahan tamu
+    const s = CAT.find((c) => c.id === v.k), no = (msg) => ({ ok: false, msg });
+    if (!s || s.id === 'rover') return no('Jenis bangunan ini tidak bisa dibangun tamu');
+    const lv = +v.lv, col = typeof v.c === 'number' && v.c >= 0 && v.c <= 0xffffff ? v.c | 0 : null;
+    if (!Number.isInteger(lv) || lv < 0 || lv > 2) return no('Level bangunan tidak valid');
+    if (items.length >= 4000) return no('Dunia sudah penuh (maks 4000 komponen)');
+    if (s.line) { // kabel/pipa: daftar segmen "x,z,r;" (r: 0 atau 1)
+      const list = (typeof v.sg === 'string' ? v.sg.split(';').filter(Boolean) : []).map((q) => /^(-?\d{1,7}),(-?\d{1,7}),([01])$/.exec(q));
+      if (!list.length || list.length > 64 || list.some((m) => !m)) return no('Data jalur tidak valid');
+      let made = 0;
+      for (const m of list) { const x = +m[1], z = +m[2], r = +m[3], q = snap(s, x, z, r); if (q[0] !== x || q[1] !== z || clash(s, x, z, r, lv)) continue; create(s, x, z, lv, r, col); made++; }
+      return made ? { ok: true, n: made } : no('Jalur sudah terisi atau posisinya tidak valid');
+    }
+    const x = +v.x, z = +v.z, rot = +v.rot;
+    if (![x, z].every(Number.isFinite) || !Number.isInteger(rot) || rot < 0 || rot > 3) return no('Posisi bangunan tidak valid');
+    if (s.id === 'miner') { // mesin tambang menempel ke titik suplai milik dunia host
+      const nd = hooks.nodeAt && hooks.nodeAt(x, z, 2);
+      if (!nd) return no('Titik suplai tidak ditemukan di dunia host');
+      if (clash(s, nd.x, nd.z, rot, 0)) return no('Terhalang objek lain');
+      const it = create(s, nd.x, nd.z, 0, rot, col); if (hooks.bind) hooks.bind(it, nd); return { ok: true, n: 1 };
+    }
+    const q = snap(s, x, z, rot);
+    if (s.kind === 'mod' ? !(Number.isInteger(x) && Number.isInteger(z)) : (q[0] !== x || q[1] !== z)) return no('Posisi bangunan tidak valid');
+    if (clash(s, x, z, rot, lv)) return no(s.kind === 'mod' ? 'Menabrak modul lain' : 'Posisi sudah terisi');
+    create(s, x, z, lv, rot, col); return { ok: true, n: 1 };
+  }
   hud(); render();
-  return { toggle, update, serialize, flying: () => S.on, focus, items, inv: () => inv, hooks, carried: () => (S.carry ? S.carry.it : null), shared: {
+  return { toggle, update, serialize, remote: { place: hostPlace }, flying: () => S.on, focus, items, inv: () => inv, hooks, carried: () => (S.carry ? S.carry.it : null), shared: {
     apply(map) { // samakan item dunia host dengan data server berdasarkan ID unik: tidak ada duplikat, bangunan lain tidak tersentuh
       const seen = new Set();
       for (const key of Object.keys(map || {})) {
@@ -1155,7 +1208,7 @@ function initBuilding(scene, camera, player, ui, world) {
     clear() { shMap.forEach((e) => detach(e.it)); shMap.clear(); },
     item: (key) => (shMap.get(key) || {}).it || null,
   }, restore: (list, inv2) => {
-    shMap.clear(); items.slice().forEach(detach);
+    shMap.clear(); items.slice().forEach(detach); undoStack.length = 0;
     list.forEach((b) => { const s = CAT.find((c) => c.id === b.type); if (!s) return; const it = create(s, b.x, b.z, b.lv, b.rot, b.color); if (b.store) it.store = b.store; });
     if (inv2) inv = inv2.slice();
     portsDirty = true; hud(); render();
@@ -2422,6 +2475,7 @@ function initNet(ui, player, scene, build, play, colony) {
       play.moveRover(nv.x, nv.z, nv.hd); pubRover = JSON.stringify(nv);
       return { ok: true };
     }
+    if (a === 'build') return build.remote.place(v); // tamu membangun: host menerapkan ke dunianya, lalu diterbitkan ke semua pemain
     const it = keymap.get(String(v.k));
     if (!it || !FACT.includes(it.type) || it.type !== a) return { ok: false, msg: 'Fasilitas tidak ditemukan' };
     if (!av || Math.hypot(av.tx - it.x, av.tz - it.z) > NEAR_MAX) return { ok: false, msg: 'Terlalu jauh dari fasilitas' };
@@ -2435,6 +2489,7 @@ function initNet(ui, player, scene, build, play, colony) {
     if (Math.abs(nowS() - (+v.t || 0)) > 15000) return; // permintaan basi
     const br = S.refs.bref; let res;
     try { res = await serveReq(uid, v); } catch (e) { console.warn('Mars Colony gagal melayani permintaan:', e); res = { ok: false, msg: 'Kesalahan di host' }; }
+    if (v.a === 'build' && res && res.ok) { try { await flushBase(br); } catch (e) { onErr(e); } } // bangunan sudah terbit ke semua pemain sebelum tamu menerima konfirmasi
     br.child('res').child(uid).set(Object.assign({ id: v.id, t: TS() }, res)).catch(onErr);
     syncFac(br); // stok yang baru berubah langsung diterbitkan
   };
