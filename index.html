@@ -117,12 +117,94 @@ h1::after{content:"";display:block;height:1px;margin:10px auto 4px;width:62%;bac
 .card button{transition:background .15s,box-shadow .15s}
 @media (hover:hover){.card button:not(:disabled):hover{box-shadow:0 0 12px rgba(94,230,208,.35)}}
 @media (prefers-reduced-motion:reduce){.card,#c{animation:none}}
+/* ===== Phase 5: HUD, kontrol, Tas, dan menu Bangun (hanya tampilan) ===== */
+:root{--joy:clamp(104px,30vmin,140px);--btn:clamp(52px,15vmin,64px);--btnL:clamp(70px,21vmin,88px);--aw:calc(var(--btn) + var(--btnL) + 12px);--ac2:rgba(94,230,208,.35)}
+.panel{border:1px solid rgba(94,230,208,.16);border-radius:3px;background:linear-gradient(135deg,rgba(10,20,23,.74),rgba(8,14,16,.5))}
+.panel::before,.panel::after{content:"";position:absolute;width:9px;height:9px;pointer-events:none}
+.panel::before{top:-1px;left:-1px;border-top:2px solid var(--ac);border-left:2px solid var(--ac)}
+.panel::after{bottom:-1px;right:-1px;border-bottom:2px solid var(--ac);border-right:2px solid var(--ac)}
+.tl{max-width:calc(100vw - var(--l) - var(--r) - 108px)}
+.tl b{font-size:14px;letter-spacing:.08em;text-transform:uppercase}
+.tl b::before{content:"";display:inline-block;width:7px;height:7px;margin-right:7px;border-radius:50%;background:var(--ac);box-shadow:0 0 8px var(--ac);vertical-align:1px}
+.tl span{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl small{font-variant-numeric:tabular-nums}
+.round{width:var(--btn);height:var(--btn);font-size:10.5px;letter-spacing:0;background:radial-gradient(circle at 35% 30%,rgba(94,230,208,.22),rgba(8,14,16,.72));transition:transform .08s,background .15s,color .15s}
+.round:active{transform:scale(.92)}
+.round.big{width:var(--btnL);height:var(--btnL);font-size:13px;border-width:3px}
+.top,.top2{top:var(--t);left:auto;transform:none;width:42px;height:42px;font-size:12px}
+.top{right:var(--r)}.top2{right:calc(var(--r) + 50px)}
+.tr{top:calc(var(--t) + 50px);right:var(--r);max-width:calc(100vw - 168px - var(--l) - var(--r));gap:6px;padding:0;background:none;border:0;box-shadow:none;backdrop-filter:none;justify-content:flex-end}
+.tr::before,.tr::after{display:none}
+.tr span{padding:3px 9px;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;background:var(--bg);border:1px solid var(--ac2);border-radius:12px}
+.tr #netTag{background:rgba(94,230,208,.16);border-color:var(--ac)}
+#dash{width:132px;padding:6px 9px;top:calc(var(--t) + 72px)}
+.nd i{height:3px;border-radius:2px}.nd.big i{height:4px}
+#joy{width:var(--joy);height:var(--joy);background:radial-gradient(circle,rgba(94,230,208,.10) 0,rgba(8,14,16,.55) 70%);box-shadow:0 0 18px rgba(94,230,208,.15),inset 0 0 14px rgba(94,230,208,.12)}
+#joy i{width:calc(var(--joy)*.4);height:calc(var(--joy)*.4);box-shadow:0 0 12px var(--ac)}
+.touch .acts{display:grid;grid-template-columns:var(--btn) var(--btnL);gap:10px 12px;align-items:end;justify-items:center}
+.acts #bBuild{grid-column:1;grid-row:1}.acts #bAct{grid-column:1;grid-row:2}.acts #bJump{grid-column:2;grid-row:1/3;align-self:end}
+.touch #build{left:calc(var(--l) + max(var(--joy),140px) + 12px);right:calc(var(--r) + var(--aw) + 14px)}
+@media (orientation:portrait){.touch #build{left:var(--l);right:var(--r);bottom:calc(var(--b) + var(--joy) + 12px)}}
+#hotbar{bottom:var(--b);gap:6px}
+@media (max-width:520px){#hotbar{bottom:calc(var(--b) + var(--joy) + 14px)}}
+.slot{width:52px;height:52px;border-radius:6px;background:linear-gradient(160deg,rgba(94,230,208,.14),rgba(8,14,16,.7));font-size:10px;transition:transform .08s}
+.slot:active{transform:scale(.93)}
+.slot.on{box-shadow:0 0 12px rgba(94,230,208,.6)}
+#toast{max-width:84vw;white-space:normal;text-align:center;bottom:calc(var(--b) + 84px);border-radius:3px}
+@media (orientation:portrait){#toast{bottom:calc(var(--b) + var(--joy) + 84px)}}
+.card{max-height:calc(100vh - 20px);max-height:calc(100dvh - 20px);overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;position:relative}
+.bagcard{overflow:hidden}
+.card button{min-height:44px;border-radius:3px}
+#resume{box-shadow:0 0 16px rgba(94,230,208,.45)}
+.card::before,.card::after{content:"";position:absolute;width:12px;height:12px;pointer-events:none}
+.card::before{top:-1px;left:-1px;border-top:2px solid var(--ac);border-left:2px solid var(--ac)}
+.card::after{bottom:-1px;right:-1px;border-bottom:2px solid var(--ac);border-right:2px solid var(--ac)}
+#bagTools .sub,#bagRover .sub{display:flex;align-items:center;gap:8px;margin:12px 0 6px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ac);opacity:.9}
+#bagTools .sub::after,#bagRover .sub::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--ac2),transparent)}
+.bgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.blist{display:flex;flex-direction:column;gap:6px}
+.bagcard .it{align-items:center;gap:8px;padding:8px 10px;background:rgba(255,255,255,.04);border:1px solid rgba(94,230,208,.18);border-left:3px solid rgba(94,230,208,.45);border-radius:3px}
+.bagcard .it.on{border-left-color:var(--ac);background:rgba(94,230,208,.14)}
+.bagcard .slotc{flex-direction:column;align-items:stretch;text-align:center}
+.bagcard .it b{font-size:13px}.bagcard .it span{font-size:11px}
+.bagcard .it button{min-width:38px;min-height:38px;padding:4px 8px}
+.bagcard .slotc button{min-height:34px;min-width:0;padding:4px 2px;font-size:10px}
+#build{max-height:52vh;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;gap:8px;border-radius:3px;background:linear-gradient(180deg,rgba(14,24,26,.82),rgba(8,14,16,.74))}
+#build>*{flex:none}
+#build button{min-height:40px;border-radius:3px;transition:background .12s}
+#modes{gap:0}#modes button{flex:1 0 auto;border-radius:0;margin-left:-1px}
+#cats button{border-radius:16px;padding:7px 14px}
+#comps button{min-width:92px;min-height:50px;text-align:center}
+#comps button.on{box-shadow:0 0 12px rgba(94,230,208,.55)}
+#bPlace{flex:1 0 auto;min-width:120px;font-size:14px;min-height:46px}
+#bRefill{opacity:.55}
+#desc{font-size:12px}
+@media (orientation:landscape) and (max-height:500px){
+  .card{padding:14px}h1{font-size:22px}.sub{margin:0}
+  #pause .card{width:min(94vw,560px);display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  #pause .card h1,#pause .card .keys{grid-column:1/-1}
+  #menu .card{width:min(94vw,560px)}
+  #mMain:not([hidden]){display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .tl span{max-width:46vw}
+  #build{max-height:60vh;gap:5px}#build button{min-height:34px;padding:5px 9px}#comps button{min-height:42px}#desc{font-size:11px}
+}
+/* ===== Phase 6: Solar Cycle Countdown ===== */
+#sol{--sc:#ffd27a;top:calc(var(--t) + 71px);left:var(--l);width:132px;padding:5px 9px 7px;gap:1px;border-color:color-mix(in srgb,var(--sc) 35%,transparent)}
+#sol::before,#sol::after{border-color:var(--sc)}
+#sol .s1{display:flex;align-items:center;gap:6px;line-height:1.2}
+#sol em{font-style:normal;font-size:14px}
+#sol .s1 b{font-size:13px;letter-spacing:.12em;color:var(--sc);text-shadow:0 0 8px var(--sc)}
+#sol .s2{font-size:11px;opacity:.9;white-space:nowrap}
+#sol strong{font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.04em;color:var(--sc)}
+#sol i{display:block;height:2px;margin-top:3px;border-radius:2px;width:0;background:var(--sc);box-shadow:0 0 6px var(--sc)}
+#dash{top:calc(var(--t) + 131px)}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="hud">
   <div class="panel tl"><b>Koloni Alpha</b><span id="lvTxt">Level 1, basis bertahan hidup</span><small id="pos">X 0 Z 0</small></div>
+  <div class="panel" id="sol"><div class="s1"><em id="solI">☀️</em><b id="solN">SIANG</b></div><div class="s2"><span id="solX">Sore dalam</span> <strong id="solT">--:--</strong></div><i id="solB"></i></div>
   <div class="panel" id="dash"><div id="dNeeds"></div><div id="dList" hidden></div><small>Syarat level ▸</small></div>
   <div class="panel tr"><span id="r0"></span><span id="r1"></span><span id="r2"></span><span id="r3"></span><span id="r4"></span><span id="netTag" hidden></span></div>
   <button id="pausebtn" class="round top" aria-label="Jeda">II</button>
@@ -218,25 +300,29 @@ function heightAt(x, z) {
   return h + mt * THREE.MathUtils.smoothstep(Math.hypot(x, z), 70, 220);
 }
 
+let SYNC_OFFSET = 0; // selisih jam server (diisi saat masuk room): semua pemain memakai waktu yang sama tanpa data baru di database
+const LIGHT_MAT = new THREE.MeshBasicMaterial({ color: 0xfff1c9 }); // lampu modul bersama: redup di siang hari, terang di malam hari
 function createWorld(scene) {
   scene.fog = new THREE.Fog(0xe09a6e, 45, 200); // warna kabut = warna cakrawala langit agar menyatu
+  const skyU = { uTop: { value: new THREE.Color(0x574566) }, uMid: { value: new THREE.Color(0xc28561) }, uHor: { value: new THREE.Color(0xe09a6e) }, uRg: { value: new THREE.Color(0x805242) }, uSun: { value: new THREE.Vector3(.52, .78, .35) }, uHalo: { value: 1 }, uStar: { value: 0 } };
   const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 24, 12), new THREE.ShaderMaterial({
-    side: THREE.BackSide, depthWrite: false, fog: false,
+    uniforms: skyU, side: THREE.BackSide, depthWrite: false, fog: false,
     vertexShader: 'varying vec3 d;void main(){d=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
     fragmentShader: [ // gradasi langit berdebu, halo biru di sekitar matahari (khas Mars), dan siluet pegunungan jauh
-      'varying vec3 d;',
+      'varying vec3 d;uniform vec3 uTop,uMid,uHor,uRg,uSun;uniform float uHalo,uStar;',
       'void main(){',
-      ' float y=d.y; vec3 H=vec3(.878,.604,.431);',
-      ' vec3 c=mix(H,vec3(.76,.52,.38),smoothstep(0.,.22,y));',
-      ' c=mix(c,vec3(.34,.27,.40),smoothstep(.14,.9,y));',
-      ' float s=max(dot(d,normalize(vec3(60.,90.,40.))),0.);',
-      ' c+=vec3(.9,.6,.35)*pow(s,10.)*.16;',
-      ' c=mix(c,vec3(.55,.70,.88),pow(s,80.)*.5);',
+      ' float y=d.y; vec3 H=uHor;',
+      ' vec3 c=mix(H,uMid,smoothstep(0.,.22,y));',
+      ' c=mix(c,uTop,smoothstep(.14,.9,y));',
+      ' float s=max(dot(d,uSun),0.);',
+      ' c+=vec3(.9,.6,.35)*pow(s,10.)*.16*uHalo;',
+      ' c=mix(c,vec3(.55,.70,.88),pow(s,80.)*.5*min(uHalo,1.));',
+      ' if(uStar>.01){vec2 sp=d.xz/max(1.+d.y,.3)*70.;float hh=fract(sin(dot(floor(sp),vec2(12.9898,78.233)))*43758.5453);c+=vec3(.9,.93,1.)*step(.985,hh)*(1.-smoothstep(0.,.16,length(fract(sp)-.5)))*uStar*smoothstep(.04,.25,y);}',
       ' float az=atan(d.z,d.x);',
       ' float r1=.034+.022*sin(az*3.+1.)+.014*sin(az*7.+2.)+.007*sin(az*17.+.5);',
       ' float r2=.016+.014*sin(az*5.+4.)+.009*sin(az*11.+1.)+.005*sin(az*23.);',
-      ' c=mix(c,mix(H,vec3(.50,.32,.26),.22),1.-smoothstep(r1-.004,r1+.004,y));',
-      ' c=mix(c,mix(H,vec3(.50,.32,.26),.40),1.-smoothstep(r2-.004,r2+.004,y));',
+      ' c=mix(c,mix(H,uRg,.22),1.-smoothstep(r1-.004,r1+.004,y));',
+      ' c=mix(c,mix(H,uRg,.40),1.-smoothstep(r2-.004,r2+.004,y));',
       ' gl_FragColor=vec4(c,1.);}'
     ].join('\n')
   })); scene.add(sky);
@@ -252,7 +338,7 @@ function createWorld(scene) {
   earth.position.set(50, 40, -110).normalize().multiplyScalar(340); scene.add(earth);
   const eOff = earth.position.clone();
 
-  scene.add(new THREE.HemisphereLight(0xffd6b5, 0x74381f, .68));
+  const hemi = new THREE.HemisphereLight(0xffd6b5, 0x74381f, .68); scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xffefdb, 1.2);
   sun.castShadow = true;
   Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, near: 1, far: 250 });
@@ -266,7 +352,7 @@ function createWorld(scene) {
   const dg = new THREE.BufferGeometry();
   dg.setAttribute('position', new THREE.BufferAttribute(dpos, 3)); dg.setAttribute('r', new THREE.BufferAttribute(drnd, 1));
   dg.setDrawRange(0, DUST_N.Medium);
-  const dustU = { t: { value: 0 }, c: { value: new THREE.Vector3() }, pr: { value: 1 } };
+  const dustU = { t: { value: 0 }, c: { value: new THREE.Vector3() }, pr: { value: 1 }, uL: { value: new THREE.Color(1, 1, 1) } };
   const dust = new THREE.Points(dg, new THREE.ShaderMaterial({
     uniforms: dustU, transparent: true, depthWrite: false,
     vertexShader: [
@@ -282,7 +368,7 @@ function createWorld(scene) {
       ' gl_PointSize=pr*(70.+90.*r)/max(dist,1.);',
       ' gl_Position=projectionMatrix*mv;}'
     ].join('\n'),
-    fragmentShader: 'varying float a;void main(){float d=length(gl_PointCoord-.5);gl_FragColor=vec4(.90,.66,.48,a*(1.-smoothstep(.1,.5,d)));}'
+    fragmentShader: 'uniform vec3 uL;varying float a;void main(){float d=length(gl_PointCoord-.5);gl_FragColor=vec4(vec3(.90,.66,.48)*uL,a*(1.-smoothstep(.1,.5,d)));}'
   }));
   dust.frustumCulled = false; scene.add(dust);
 
@@ -343,7 +429,49 @@ function createWorld(scene) {
   };
   stream({ x: 0, z: 8 }, 30);
 
-  return { sun, colliders, setFx(name) { dg.setDrawRange(0, DUST_N[name] || DUST_N.Medium); }, reshape() { chunks.forEach((ch) => fill(ch.mesh.geometry)); },
+  // ---- Siklus siang, sore, malam, pagi (720 detik). Waktu dari jam server => sama untuk semua pemain di room. Murni visual, ringan (dihitung ~10x/detik). ----
+  const DAY = 720, AMP = 42, OFF = 10, RAD = Math.PI / 180, cl = THREE.MathUtils.clamp, qt = parseFloat(new URLSearchParams(location.search).get('tod')), FORCE = Number.isFinite(qt) ? qt : null; // ?tod=0.75 untuk uji cepat
+  const C = (h) => new THREE.Color(h), sst = (a, b, x) => { x = cl((x - a) / (b - a), 0, 1); return x * x * (3 - 2 * x); };
+  const K = [ // kunci warna menurut ketinggian matahari (sin elevasi): malam, senja, sore, pagi/siang, siang
+    { e: -.30, top: C(0x04060f), mid: C(0x0a0c1c), hor: C(0x1d1a2a), dark: C(0x0c0b14), hs: C(0x8090d0), hg: C(0x1a1420), hi: .55, sc: C(0x8fa0e8), si: .38, halo: 0, star: 1 },
+    { e: -.10, top: C(0x0e1030), mid: C(0x2a2142), hor: C(0x5a3c4a), dark: C(0x2a1f2a), hs: C(0x9a8cc0), hg: C(0x2a1a22), hi: .55, sc: C(0xb08aa0), si: .36, halo: .5, star: .55 },
+    { e: 0, top: C(0x30284a), mid: C(0x8a5a58), hor: C(0xe8825a), dark: C(0x6a3a34), hs: C(0xffb58a), hg: C(0x5a2a20), hi: .56, sc: C(0xff9a5a), si: .7, halo: 2.2, star: 0 },
+    { e: .12, top: C(0x433a5c), mid: C(0xa8704c), hor: C(0xe8985f), dark: C(0x7a4a3a), hs: C(0xffc79a), hg: C(0x6a321f), hi: .62, sc: C(0xffd0a0), si: 1, halo: 1.4, star: 0 },
+    { e: .35, top: C(0x574566), mid: C(0xc28561), hor: C(0xe09a6e), dark: C(0x805242), hs: C(0xffd6b5), hg: C(0x74381f), hi: .68, sc: C(0xffefdb), si: 1.2, halo: 1, star: 0 }
+  ];
+  const CK = ['top', 'mid', 'hor', 'dark', 'hs', 'hg', 'sc'], NK = ['hi', 'si', 'halo', 'star'], E = { top: C(0), mid: C(0), hor: C(0), dark: C(0), hs: C(0), hg: C(0), sc: C(0), hi: 0, si: 0, halo: 0, star: 0 };
+  const sunDir = new THREE.Vector3(.52, .78, .35), keyDir = sunDir.clone(), MOON = new THREE.Vector3(-.4, .8, -.45).normalize(), kd = new THREE.Vector3();
+  const todNow = () => (FORCE !== null ? ((FORCE % 1) + 1) % 1 : (((Date.now() + SYNC_OFFSET) / 1000) % DAY) / DAY); // jam server => sama untuk semua pemain
+  // Batas fase dihitung dari rumus matahari yang sama: SIANG mulai saat matahari naik melewati kunci siang, SORE saat turun melewatinya, MALAM saat melewati kunci malam, PAGI saat naik melewatinya
+  const tB = (e, rising) => { const a = Math.asin((Math.asin(e) / RAD - OFF) / AMP) / (2 * Math.PI); return rising ? (a + 1) % 1 : .5 - a; };
+  const PB = [tB(K[4].e, true), tB(K[4].e, false), tB(K[0].e, false), tB(K[0].e, true)]; // awal SIANG, SORE, MALAM, PAGI
+  function solar() { // fase saat ini (0 siang, 1 sore, 2 malam, 3 pagi), sisa waktu fase (detik), dan lamanya fase (detik)
+    const t = todNow(); let i = 3; for (let k = 0; k < 3; k++) if (t >= PB[k] && t < PB[k + 1]) i = k;
+    const nx = PB[(i + 1) % 4]; let rem = nx - t, len = nx - PB[i]; if (rem <= 0) rem += 1; if (len <= 0) len += 1;
+    return { i, rem: rem * DAY, len: len * DAY };
+  }
+  let tEnv = -1e9;
+  function env() {
+    tEnv = performance.now();
+    const tod = todNow(), ang = tod * 2 * Math.PI;
+    const elev = (AMP * Math.sin(ang) + OFF) * RAD, ce = Math.cos(elev), e = Math.sin(elev); // siang ~42%, sore ~15%, malam ~27%, pagi ~15%
+    let hx = Math.cos(ang) * .95, hz = .35; const hl = Math.hypot(hx, hz); hx /= hl; hz /= hl;
+    sunDir.set(hx * ce, e, hz * ce);
+    const sunK = sst(-.04, .2, e), ke = Math.max(elev, 14 * RAD), kc = Math.cos(ke); // arah bayangan: matahari (min. 14 derajat), malam dari cahaya bulan
+    kd.set(hx * kc, Math.sin(ke), hz * kc); keyDir.copy(MOON).lerp(kd, sunK).normalize();
+    let i = 0; while (i < K.length - 2 && e >= K[i + 1].e) i++;
+    const a = K[i], b = K[i + 1], t = cl((e - a.e) / (b.e - a.e), 0, 1), u = t * t * (3 - 2 * t);
+    for (let j = 0; j < CK.length; j++) E[CK[j]].copy(a[CK[j]]).lerp(b[CK[j]], u);
+    for (let j = 0; j < NK.length; j++) E[NK[j]] = a[NK[j]] + (b[NK[j]] - a[NK[j]]) * u;
+    skyU.uTop.value.copy(E.top); skyU.uMid.value.copy(E.mid); skyU.uHor.value.copy(E.hor); skyU.uRg.value.copy(E.dark); skyU.uSun.value.copy(sunDir); skyU.uHalo.value = E.halo; skyU.uStar.value = E.star;
+    hemi.color.copy(E.hs); hemi.groundColor.copy(E.hg); hemi.intensity = E.hi; sun.color.copy(E.sc); sun.intensity = E.si;
+    const night = 1 - sst(-.06, .22, e); scene.fog.color.copy(E.hor); scene.fog.near = 45 - 12 * night; scene.fog.far = 200 - 10 * night; // kabut selalu sewarna cakrawala
+    const g = sst(0, .3, e); disc.visible = e > -.07; disc.material.color.setRGB(1, .5 + .44 * g, .25 + .57 * g); disc.scale.setScalar(1 + .35 * (1 - g)); earth.visible = E.star > .35;
+    const L = .2 + .8 * sst(-.12, .35, e); dustU.uL.value.setRGB(L, L * .97, L * (1 + .15 * (1 - L)));
+    LIGHT_MAT.color.setRGB(.55 + .45 * night, .53 + .415 * night, .46 + .33 * night); // lampu bangunan: redup siang, terang malam
+  }
+  env();
+  return { sun, colliders, solar, setFx(name) { dg.setDrawRange(0, DUST_N[name] || DUST_N.Medium); }, reshape() { chunks.forEach((ch) => fill(ch.mesh.geometry)); },
     flatten(x, z, r) { // ratakan tanah di bawah bangunan baru (chunk diperbarui di flush)
       const q = r + 6;
       for (let i = Math.floor((x - q) / 4); i <= Math.ceil((x + q) / 4); i++) for (let j = Math.floor((z - q) / 4); j <= Math.ceil((z + q) / 4); j++) if (Math.hypot(i * 4 - x, j * 4 - z) <= q) FM.add((i + 4096) * 8192 + j + 4096);
@@ -351,10 +479,11 @@ function createWorld(scene) {
     },
     flush() { dirty.forEach((k) => { const ch = chunks.get(k); if (ch) fill(ch.mesh.geometry); }); dirty.clear(); }, follow(pos) { // bayangan, langit, dan chunk mengikuti pemain
     stream(pos, 2);
-    sky.position.set(pos.x, 0, pos.z); disc.position.copy(dOff).add(sky.position);
+    if (performance.now() - tEnv > 100) env();
+    sky.position.set(pos.x, 0, pos.z); disc.position.copy(sunDir).multiplyScalar(350).add(sky.position);
     moon.position.copy(mOff).add(sky.position); earth.position.copy(eOff).add(sky.position);
     dustU.t.value = performance.now() / 1000; dustU.c.value.set(pos.x, pos.y, pos.z); dustU.pr.value = renderer.domElement.height / 1000;
-    sun.position.set(pos.x + 60, pos.y + 90, pos.z + 40);
+    sun.position.set(pos.x + keyDir.x * 115, pos.y + keyDir.y * 115, pos.z + keyDir.z * 115);
     sun.target.position.copy(pos); sun.target.updateMatrixWorld();
   } };
 }
@@ -816,7 +945,7 @@ function initBuilding(scene, camera, player, ui, world) {
     const g = new THREE.Group(), [k, a, b] = spec.shape, m = gm ? { f: gm, g: gm, fl: gm, l: gm } : {
       f: new THREE.MeshStandardMaterial({ color: color || 0xc9d0d6, roughness: .4, metalness: .4 }),
       g: new THREE.MeshStandardMaterial({ color: 0x8fdcff, roughness: .1, transparent: true, opacity: .3, side: THREE.DoubleSide, depthWrite: false }),
-      fl: new THREE.MeshStandardMaterial({ color: 0x7d868e, roughness: .9 }), l: new THREE.MeshBasicMaterial({ color: 0xfff1c9 }) };
+      fl: new THREE.MeshStandardMaterial({ color: 0x7d868e, roughness: .9 }), l: LIGHT_MAT };
     if (!gm) m.g.onBeforeCompile = glassFx;
     const add = (par, geo, t, x, y, z, sc, ry) => {
       const me = new THREE.Mesh(geo, m[t]); me.position.set(x, y, z);
@@ -1831,10 +1960,11 @@ function initPlay(scene, player, build, colony, ui) {
   // Tas
   function renderBag() {
     const items = [...TOOLS, ['food', 'Makanan', `${bag.food} tersedia`]];
-    $('bagTools').innerHTML = '<p class="sub">Tangan (3 slot)</p>'
-      + hand.map((k, i) => `<div class="it${act === i ? ' on' : ''}"><div style="text-align:left"><b>Slot ${i + 1}</b><br><span>${k ? SLOT_N[k] : 'kosong'}</span></div>${k ? `<button data-c="${i}">Kosongkan</button>` : ''}</div>`).join('')
-      + '<p class="sub">Item: ketuk nomor slot untuk memindah ke tangan</p>'
-      + items.map(([k, n, d]) => `<div class="it"><div style="text-align:left"><b>${n}</b><br><span>${d}</span></div><div>${[0, 1, 2].map((i) => `<button data-k="${k}" data-s="${i}" class="${hand[i] === k ? 'on' : ''}">${i + 1}</button>`).join('')}</div></div>`).join('');
+    const IC = { pick: '⛏', axe: '🪓', shovel: '🥄', food: '🍱' }, ic = (k) => (IC[k] ? IC[k] + ' ' : '');
+    $('bagTools').innerHTML = '<p class="sub">Tangan (3 slot)</p><div class="bgrid">'
+      + hand.map((k, i) => `<div class="it slotc${act === i ? ' on' : ''}"><div><b>Slot ${i + 1}</b><br><span>${k ? ic(k) + SLOT_N[k] : 'kosong'}</span></div>${k ? `<button data-c="${i}">Kosongkan</button>` : ''}</div>`).join('')
+      + '</div><p class="sub">Item: ketuk nomor slot untuk memindah ke tangan</p><div class="blist">'
+      + items.map(([k, n, d]) => `<div class="it"><div style="text-align:left"><b>${ic(k)}${n}</b><br><span>${d}</span></div><div>${[0, 1, 2].map((i) => `<button data-k="${k}" data-s="${i}" class="${hand[i] === k ? 'on' : ''}">${i + 1}</button>`).join('')}</div></div>`).join('') + '</div>';
   }
   const rv = document.createElement('div'); rv.id = 'bagRover'; $('bagTools').after(rv);
   function renderRv() {
@@ -2634,7 +2764,7 @@ function initNet(ui, player, scene, build, play, colony) {
     let slotRef = null, presenceRegistered = false, sessionHeld = false, metaCreated = false, hostInfo = null, offs = [], spawn = null, baseOk = false, baseSnap = null, visitStarted = false;
     try {
       if (!(await connected())) return fail('OFFLINE', 'Tidak bisa terhubung ke server. Periksa internet.');
-      S.offset = (await rtdb.ref('.info/serverTimeOffset').once('value')).val() || 0;
+      S.offset = (await rtdb.ref('.info/serverTimeOffset').once('value')).val() || 0; SYNC_OFFSET = S.offset;
       let hostMeta = null;
       if (role === 'host') {
         if (!roomId.startsWith(u.uid + '_')) return fail('NOT_OWNER', 'Hanya pemilik dunia yang bisa membuka room.');
@@ -2890,6 +3020,17 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, 1, .1, 700);
 const world = createWorld(scene);
+{ // Solar Cycle Countdown: fase dan sisa waktu dibaca dari siklus matahari (world.solar), jadi selalu sama dengan langit dan dengan pemain lain
+  const el = $('sol'), I = $('solI'), N = $('solN'), X = $('solX'), T = $('solT'), B = $('solB');
+  const PH = [['☀️', 'SIANG', '#ffd27a', 'Sore'], ['🌇', 'SORE', '#ff8a5a', 'Malam'], ['🌙', 'MALAM', '#8ea2ff', 'Pagi'], ['🌅', 'PAGI', '#ffc9a0', 'Siang']];
+  let lastI = -1, lastS = -1;
+  const upd = () => {
+    const s = world.solar(), sec = Math.ceil(s.rem);
+    if (s.i !== lastI) { const p = PH[s.i]; lastI = s.i; I.textContent = p[0]; N.textContent = p[1]; X.textContent = p[3] + ' dalam'; el.style.setProperty('--sc', p[2]); }
+    if (sec !== lastS) { lastS = sec; T.textContent = String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0'); B.style.width = Math.max(0, Math.min(100, (1 - s.rem / s.len) * 100)) + '%'; }
+  };
+  upd(); setInterval(upd, 250);
+}
 const player = new Player(scene, camera, world.colliders);
 const input = new Input(canvas);
 document.body.classList.toggle('touch', input.touch);
